@@ -13,9 +13,9 @@
 set -u
 cd "$(dirname "$0")/.."
 OUT=build/host
-BOARD_CFLAGS=""
-[ "${SYSTEM37_ONLY:-0}" = 1 ] && BOARD_CFLAGS="-DBOARD_SMK37=1"
-CC="${CC:-cc} -O2 -w $BOARD_CFLAGS -Ibuild/gen -Ifirmware/src"
+HOSTSIM_CFLAGS=""
+[ "${SYSTEM37_ONLY:-0}" = 1 ] && HOSTSIM_CFLAGS="-DSYSTEM37_HOSTSIM=1"
+CC="${CC:-cc} -O2 -w $HOSTSIM_CFLAGS -Ibuild/gen -Ifirmware/src"
 fail=0
 [ -x "$OUT/regress" ] || $CC -o "$OUT/regress" tests/regress.c -lm || exit 1
 $CC -o "$OUT/mix_split_test" tests/mix_split_test.c -lm || exit 1
