@@ -319,6 +319,7 @@ static void dc_clip(void)
 {
     static double y[FS];
     uint32_t pi, note, v, ok = 1, okdc = 1;
+    uint32_t worst_pi = 0, worst_note = 0, worst_vel = 0;
     double worst = 0, wdc = 0;
     for (pi = 0; pi < FM6_NFACTORY; pi++)
         for (note = 24; note <= 96; note += 12)
@@ -334,11 +335,16 @@ static void dc_clip(void)
                 }
                 ok &= pk < 2.0 * VOICE_FS;
                 okdc &= fabs(s / FS) < 0.01 * VOICE_FS;
-                worst = pk > worst ? pk : worst;
+                if (pk > worst) {
+                    worst = pk;
+                    worst_pi = pi;
+                    worst_note = note;
+                    worst_vel = v ? 127u : 30u;
+                }
                 wdc = fabs(s / FS) > wdc ? fabs(s / FS) : wdc;
             }
-    printf("fm6: factory patches C1..C7, velocity 30 / 127: peak %.0f (VOICE_FS %d), |mean| at most %.1f\n", worst,
-           VOICE_FS, wdc);
+    printf("fm6: factory patches C1..C7, velocity 30 / 127: peak %.0f (VOICE_FS %d), |mean| at most %.1f; worst patch %u note %u velocity %u\n", worst,
+           VOICE_FS, wdc, worst_pi, worst_note, worst_vel);
     check("no clipping: every factory patch, C1..C7, velocity 30 and 127: a voice below 2 x VOICE_FS", ok);
     check("no DC: |mean| below 1 % of VOICE_FS", okdc);
 }
