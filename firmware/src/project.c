@@ -1130,8 +1130,11 @@ static int s37_catalog_store_section(uint32_t slot, const project_t *p)
     uint8_t def;
     if (slot >= S37_CAT_SECTIONS || !p || !proj_v7_valid(p) || s37_cat_uncertain)
         return -1;
-    if (!s37_cat_ready)
-        return s37_catalog_write_full();
+    if (!s37_cat_ready) {
+        if (s37_catalog_write_full())
+            return -1;
+        return s37_catalog_store_section(slot, p);
+    }
     bars = (uint16_t)section_bars(slot);
     if (!bars) bars = 1u;
     def = s37_cat_header.default_section;
@@ -1152,8 +1155,11 @@ static int s37_catalog_erase_section(uint32_t slot)
 {
     if (slot >= S37_CAT_SECTIONS || s37_cat_uncertain)
         return -1;
-    if (!s37_cat_ready)
-        return s37_catalog_write_full();
+    if (!s37_cat_ready) {
+        if (s37_catalog_write_full())
+            return -1;
+        return s37_catalog_erase_section(slot);
+    }
     if (s37_cat_prepare_erase_overlay(&s37_cat_overlay, &s37_cat_io, &s37_cat_map,
                                       &s37_cat_state, &s37_cat_scratch, (uint8_t)slot) ||
         sm_save_stream(&s37_cat_io, &s37_cat_map, s37_cat_overlay_read,
