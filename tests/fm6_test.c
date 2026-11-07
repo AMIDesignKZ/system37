@@ -683,7 +683,7 @@ static void bank(void)
     check("bank: slot 27 is bad (rc 1), nothing written", r == 1u && fm6_bank_has(3));
     {   /* a part on B4 hears the store: fm6_slot forgotten, fm6_poll reloads the slot */
         setup(v, 0);
-        trk[0].p[P_E7] = FM6_NFACTORY + 3;
+        trk[0].p[P_E7] = FM6_NATIVE_N + 3u;
         fm6_poll();
         check("bank: PTCH B4 loads the stored patch (main loop)", fm6_slot[0] == FM6_NATIVE_N + 3u &&
               !memcmp(fm6_patch[0] + FP_NAME, "GLASS BELL", 10));

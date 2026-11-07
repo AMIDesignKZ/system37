@@ -531,9 +531,13 @@ static void flash_random(void)
         st_put(OBJ_FM6BANK, raw, sizeof *b);
     }
     for (i = 0; i < SMP_USER_SLOTS; i++) slot_random(i);
-    for (i = 0; i < 4; i++) {                      /* .noinit: garbage, or a valid project (a warm reset) */
-        if (rn(2)) rbytes((uint8_t *)&proj_slot[i], sizeof proj_slot[i], 1);
-        else proj_random(&proj_slot[i]);
+#if BOARD_SMK37
+    for (i = 0; i < 8u; i++) {                     /* eight FUN7 caches: RAM, LOWRAM and NOINIT */
+#else
+    for (i = 0; i < 4u; i++) {                     /* FM-1's four .noinit project caches */
+#endif
+        if (rn(2)) rbytes((uint8_t *)proj_slot[i], sizeof *proj_slot[i], 1);
+        else proj_random(proj_slot[i]);
     }
     if (rn(30) == 0) {                             /* random bytes over a few sectors */
         uint32_t k = rn(8);
@@ -826,11 +830,11 @@ static void round_trip(void)
     if (!rt_cmp("backup -> other use -> restore")) fail("a backup restored does not give the project back");
     /* (b) a section saved, other use, loaded (from RAM, or from flash) */
     {
-        uint32_t sl = rn(4);
+        uint32_t sl = rn(BOARD_SMK37 ? 8u : 4u);
         project_save(sl);
         scramble_light();
         int lost = rn(2);
-        if (lost) proj_slot[sl].magic ^= 0xFFu;     /* (the RAM copy lost: from flash) */
+        if (lost) proj_slot[sl]->magic ^= 0xFFu;     /* (the RAM copy lost: from flash) */
         if (song.playing || transport_req) return;
         project_load(sl);
         proj_capture(&rt_b);

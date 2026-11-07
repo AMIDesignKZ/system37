@@ -25,16 +25,26 @@ static uint8_t vis_lj[3][256][2];                   /* Lissajous: the last three
 static struct {
     int32_t scale, ljscale, peak;                   /* auto-scales (smoothed peaks), this frame's peak */
     int16_t bar[32], cap[32], capv[32];             /* spectrum: bars, caps and their fall speed (0..1000) */
-    int16_t vu[5], pk[5], pkt[5];                   /* VU: tracks + master, peak holds */
-    int16_t lvl[5];                                 /* the tracks' levels (0..1000) this frame, the master */
-    int16_t bh[4], bv[4];                           /* BOUNCE: height and speed (1/256 units) */
-    uint8_t flash[4], kick;                         /* frames since a note started (0 = none) / a kick, fading */
-    int16_t wamp[4];                                /* WIRES: each string's swing (0..1000) */
-    uint8_t wn[4];                                  /* its wave count (from the note) */
-    uint32_t free_q8, last_ms, wph;                 /* beats (1/256) when stopped; the wires' phase */
+    int16_t vu[NTRK + 1], pk[NTRK + 1], pkt[NTRK + 1];
+    int16_t lvl[NTRK + 1];
+    int16_t bh[NTRK], bv[NTRK];
+    uint8_t flash[NTRK], kick;
+    int16_t wamp[NTRK];
+    uint8_t wn[NTRK];
+    uint32_t free_q8, last_ms, wph;
     uint8_t lj_n;
 } vs;
-/* the spectrum's 32 bands: bins of the 512-point FFT at 22 050 Hz (43 Hz each), 40 Hz .. 10 kHz */
+
+#if BOARD_SMK37
+static const uint16_t VIS_TRACK_COL[NTRK] = {
+    RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24),
+    RGB(255, 98, 26), RGB(176, 104, 255), RGB(20, 196, 220)
+};
+static uint16_t vis_track_col(uint32_t i) { return VIS_TRACK_COL[i % NTRK]; }
+#else
+static uint16_t vis_track_col(uint32_t i) { return TE_COL[i % 4u]; }
+#endif
+
 static const uint8_t VIS_EDGE[33] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 25, 29, 35,
                                      41, 49, 58, 69, 82, 98, 116, 138, 164, 195, 232};
 
@@ -209,7 +219,7 @@ static void vis_bands(int16_t *out)
 static void vis_update(void)
 {
     uint32_t i, w, hit, now = fm1_ms;
-    int32_t pk[4], mpk = 0;
+    int32_t pk[NTRK], mpk = 0;
     /* the scope: the last 512 frames (left, right) */
     w = scope_w;
     for (i = 0; i < VIS_FFT; i++) {
@@ -224,7 +234,7 @@ static void vis_update(void)
         pk[i] = trk[i].peak;
         trk[i].peak = 0;
     }
-    pk[3] = drums.peak;
+    pk[TRK_DRUM] = drums.peak;
     drums.peak = 0;
     hit = vis_hit;
     vis_hit = 0;
@@ -233,7 +243,7 @@ static void vis_update(void)
         vs.kick = 255;
     }
     fm1_irq_on();
-    for (i = 0; i < 4u; i++) {
+    for (i = 0; i < NTRK; i++) {
         int32_t v = trk_level(i) && !trk[i].p[P_MUTE] ? vis_lvl(pk[i]) : 0;   /* (as the TRACKS meters) */
         vs.lvl[i] = (int16_t)v;
         if ((hit >> i) & 1u) {
@@ -253,7 +263,7 @@ static void vis_update(void)
         if (!vs.bh[i] && vs.bv[i] < 0)
             vs.bv[i] = (int16_t)(vs.bv[i] < -256 ? -vs.bv[i] * 35 / 100 : 0);
     }
-    vs.lvl[4] = (int16_t)vis_lvl(mpk);
+    vs.lvl[NTRK] = (int16_t)vis_lvl(mpk);
     vs.kick = (uint8_t)(vs.kick > 20 ? vs.kick - 20 : 0);
     /* the free beat count (stopped) */
     {
@@ -317,7 +327,7 @@ static void vis_update(void)
         break;
     }
     case 4:                                         /* VU: fall 3 % a frame, peaks held a second */
-        for (i = 0; i < 5u; i++) {
+        for (i = 0; i < NTRK + 1u; i++) {
             int32_t v = vs.lvl[i];
             vs.vu[i] = (int16_t)(v > vs.vu[i] - 30 ? v : vs.vu[i] - 30);
             if (v >= vs.pk[i]) {
@@ -329,7 +339,7 @@ static void vis_update(void)
         }
         break;
     case 11:                                        /* SLOOP: the sail's bands and the dial fall slowly */
-        for (i = 0; i < 5u; i++)
+        for (i = 0; i < NTRK + 1u; i++)
             vs.vu[i] = (int16_t)(vs.lvl[i] > vs.vu[i] - 30 ? vs.lvl[i] : vs.vu[i] - 30);
         break;
     default:
@@ -417,18 +427,17 @@ static void vis_lissajous(void)
 static void vis_meters(void)
 {
     uint32_t i, k;
-    for (i = 0; i < 5u; i++) {
-        int32_t x0 = 10 + (int32_t)i * 46, on = vs.vu[i] * 24 / 1000, pk = vs.pk[i] * 24 / 1000;
-        uint16_t c = i < 4u ? TE_COL[i] : C_WHITE;
-        char lab[2] = {(char)(i < 4u ? '1' + i : 'M'), 0};
+    for (i = 0; i < NTRK + 1u; i++) {
+        int32_t x0 = 3 + (int32_t)i * 34, on = vs.vu[i] * 24 / 1000, pk = vs.pk[i] * 24 / 1000;
+        uint16_t c = i == NTRK ? C_WHITE : vis_track_col(i);
+        char lab[2] = {(char)(i == NTRK ? 'M' : i == TRK_DRUM ? 'D' : '1' + i), 0};
         for (k = 0; k < 24u; k++) {
             int32_t y = 206 - (int32_t)k * 8;
             uint16_t col = (int32_t)k < on ? (k < 18u ? c : k < 22u ? TE_COL[2] : RGB(255, 44, 52)) : TE_G1;
-            if ((int32_t)k == pk && pk > 0)
-                col = C_WHITE;
-            cv_rect(x0, y - 5, 35, 6, col);
+            if ((int32_t)k == pk && pk > 0) col = C_WHITE;
+            cv_rect(x0, y - 5, 28, 6, col);
         }
-        cv_text(x0 + 13, 216, &FONT_S, lab, c);
+        cv_text(x0 + 11, 216, &FONT_S, lab, c);
     }
 }
 static void vis_ring(void)
@@ -469,7 +478,7 @@ static void vis_tape(void)
     cv_line(120, 196, 180, 158, C_DIM);
     cv_rect(104, 190, 33, 17, TE_COL[3]);           /* the head, the level passing it */
     for (s = 0; s < 9u; s++) {
-        int32_t d = (int32_t)s - 4, h = vs.lvl[4] * 30 * (5 - (d < 0 ? -d : d)) / 5000;
+        int32_t d = (int32_t)s - 4, h = vs.lvl[NTRK] * 30 * (5 - (d < 0 ? -d : d)) / 5000;
         cv_rect(84 + (int32_t)s * 8, 186 - h, 5, h, s == 4u ? TE_COL[3] : C_HI);
     }
     s = song.playing ? clk_beat : 0u;
@@ -497,70 +506,71 @@ static void vis_lcd(void)
     vis_seg(100, 124, 26, 46, 5, (int)(beat % 4u + 1u), TE_COL[3]);
     for (k = 0; k < 4u; k++)
         vis_ellipse(154 + (int32_t)k * 22, 144, 8, 8, song.playing && beat % 4u == k ? TE_COL[3] : te_gray(RGB(40, 40, 46)));
-    for (i = 0; i < 4u; i++)
+    for (i = 0; i < NTRK; i++)
         for (k = 0; k < 14u; k++)
-            cv_rect(18 + (int32_t)k * 15, 186 + (int32_t)i * 12, 13, 9,
-                    (int32_t)k < vs.lvl[i] * 14 / 1000 + (vs.lvl[i] > 0) ? TE_COL[i] : te_gray(RGB(30, 30, 34)));
+            cv_rect(18 + (int32_t)k * 15, 178 + (int32_t)i * 8, 13, 7,
+                    (int32_t)k < vs.lvl[i] * 14 / 1000 + (vs.lvl[i] > 0) ? vis_track_col(i) : te_gray(RGB(30, 30, 34)));
 }
 static void vis_bounce(void)
 {
     uint32_t i;
-    for (i = 0; i < 4u; i++) {
-        int32_t x = 36 + (int32_t)i * 56, h = vs.bh[i], y = 196 - h * 45 / 2560, sh = 16 - h / 512;
-        int32_t sq = h < 512 && vs.bv[i] < 0 ? 4 : 0;   /* squashed as it lands */
+    for (i = 0; i < NTRK; i++) {
+        int32_t x = 20 + (int32_t)i * 40, h = vs.bh[i], y = 196 - h * 45 / 2560, sh = 14 - h / 640;
+        int32_t sq = h < 512 && vs.bv[i] < 0 ? 4 : 0;
+        char lab[2] = {(char)(i == TRK_DRUM ? 'D' : '1' + i), 0};
         vis_ellipse(x, 205, sh < 4 ? 4 : sh, 3, te_gray(RGB(30, 30, 34)));
-        vis_ellipse(x, y, 16 + sq, 16 - sq, TE_COL[i]);
-        {
-            char lab[2] = {(char)('1' + i), 0};
-            cv_text(x - 4, 220, &FONT_S, lab, TE_COL[i]);
-        }
+        vis_ellipse(x, y, 13 + sq, 13 - sq, vis_track_col(i));
+        cv_text(x - 4, 220, &FONT_S, lab, vis_track_col(i));
     }
     cv_rect(8, 212, 224, 2, C_LINE);
 }
 static void vis_orbit(void)
 {
-    static const uint8_t RAD[4] = {42, 62, 82, 102}, PER[4] = {1, 2, 4, 8};
+    static const uint8_t RAD[6] = {32, 46, 60, 74, 88, 102}, PER[6] = {1, 2, 3, 4, 6, 8};
     uint32_t bq = vis_beat_q8(), i, k;
-    int32_t rs = 14 + vs.lvl[4] * 22 / 1000;
-    for (i = 0; i < 4u; i++) {
-        uint32_t a = (bq * 4u / PER[i]) - 256u;     /* a turn = 1024: per beats, from the top */
-        int32_t pr = 4 + vs.lvl[i] * 8 / 1000;
+    int32_t rs = 14 + vs.lvl[NTRK] * 22 / 1000;
+    for (i = 0; i < NTRK; i++) {
+        uint32_t a = (bq * 4u / PER[i]) - 256u;
+        int32_t pr = 3 + vs.lvl[i] * 7 / 1000;
         vis_circle(120, 120, RAD[i], te_gray(RGB(36, 36, 42)));
-        for (k = 1; k < 7u; k++) {                  /* its trail */
+        for (k = 1; k < 7u; k++) {
             uint32_t ak = a - k * 13u;
             vis_ellipse(120 + ((icos(ak) * RAD[i]) >> 15), 120 + ((isin(ak) * RAD[i]) >> 15), 2, 2,
-                        mix565(TE_COL[i], 0, (int32_t)(60u + k * 196u / 7u)));
+                        mix565(vis_track_col(i), 0, (int32_t)(60u + k * 196u / 7u)));
         }
-        vis_ellipse(120 + ((icos(a) * RAD[i]) >> 15), 120 + ((isin(a) * RAD[i]) >> 15), pr, pr, TE_COL[i]);
+        vis_ellipse(120 + ((icos(a) * RAD[i]) >> 15), 120 + ((isin(a) * RAD[i]) >> 15), pr, pr, vis_track_col(i));
     }
     vis_ellipse(120, 120, rs, rs, C_WHITE);
 }
 static void vis_wires(void)
 {
     uint32_t i, x;
-    for (i = 0; i < 4u; i++) {
-        int32_t y0 = 40 + (int32_t)i * 52, amp = vs.wamp[i] * 22 / 1000, py = y0;
-        char lab[2] = {(char)('1' + i), 0};
-        for (x = 0; x < 240u; x += 2u) {           /* a standing wave: the string's shape x its swing */
-            uint32_t a = x * 512u / 240u, cyc = i == 3u ? 8u : vs.wn[i] ? vs.wn[i] : 2u;   /* sin(pi x / L) */
+    for (i = 0; i < NTRK; i++) {
+        int32_t y0 = 25 + (int32_t)i * 35, amp = vs.wamp[i] * 22 / 1000, py = y0;
+        char lab[2] = {(char)(i == TRK_DRUM ? 'D' : '1' + i), 0};
+        for (x = 0; x < 240u; x += 2u) {
+            uint32_t a = x * 512u / 240u, cyc = i == TRK_DRUM ? 8u : vs.wn[i] ? vs.wn[i] : 2u;
             int32_t env = isin(a), wv = isin(x * cyc * 1024u / 240u + vs.wph * (3u + i));
             int32_t y = y0 - (((env * wv) >> 15) * amp >> 15);
-            if (x)
-                vis_thick((int32_t)x - 2, py, (int32_t)x, y, TE_COL[i]);
+            if (x) vis_thick((int32_t)x - 2, py, (int32_t)x, y, vis_track_col(i));
             py = y;
         }
         vis_ellipse(4, y0, 4, 4, C_WHITE);
         vis_ellipse(236, y0, 4, 4, C_WHITE);
-        cv_text(10, y0 - 22, &FONT_S, lab, TE_COL[i]);
+        cv_text(10, y0 - 20, &FONT_S, lab, vis_track_col(i));
     }
 }
-/* the logo (tools/gen_logo.py at 0.86, centred on 120, 112), alive: the dial is the master, the sail's four
- * bands the tracks (growing with their level, flashing on a note), the boat rocks on the master's wave */
+/* The System 37 logo: six sail bands for five synth parts plus drums; the dial is the master. */
 static void vis_sloop(void)
 {
-    static const int16_t BAND[4][4] = {{691, 1035, 1659, 1938}, {1118, 1462, 2006, 2285}, {1544, 1888, 2353, 2632},
-                                       {1971, 2315, 2700, 2980}};   /* y0, y1, x right at y0, at y1 (1/16 px) */
-    static const uint16_t DIMC[4] = {RGB(9, 27, 56), RGB(7, 45, 25), RGB(56, 44, 5), RGB(56, 22, 6)};
+    static const int16_t BAND[6][4] = {
+        {691, 1035, 1659, 1860}, {1070, 1414, 1659, 2070}, {1449, 1793, 1659, 2280},
+        {1828, 2172, 1659, 2490}, {2207, 2551, 1659, 2700}, {2586, 2980, 1659, 2980}
+    };
+    static const uint16_t DIMC[6] = {
+        RGB(9, 27, 56), RGB(7, 45, 25), RGB(56, 44, 5),
+        RGB(56, 22, 6), RGB(35, 18, 56), RGB(5, 42, 48)
+    };
     uint32_t bq = vis_beat_q8(), i;
     int32_t ang = (isin(bq) * 11) >> 15;            /* +-4 degrees (1024 a turn), a sway every four beats */
     int32_t sn = isin((uint32_t)ang), cs = icos((uint32_t)ang);
@@ -568,19 +578,20 @@ static void vis_sloop(void)
 #define ROT(X, Y, I) do { int32_t dx_ = (X) - 120 * 16, dy_ = (Y) - 170 * 16;                       \
         px[I] = 120 * 16 + ((dx_ * cs - dy_ * sn) >> 15); py[I] = 170 * 16 + ((dx_ * sn + dy_ * cs) >> 15); } while (0)
     /* the dial: 270 degrees, lit to the master's level */
-    end = vs.vu[4] * 768 / 1000;
+    end = vs.vu[NTRK] * 768 / 1000;
     for (x = 0; x <= 768; x += 6) {
         uint32_t a = (uint32_t)(384 + x) & 1023u;
-        vis_ellipse(120 + ((icos(a) * 99) >> 15), 112 + ((isin(a) * 99) >> 15), 5, 5, x <= end && vs.vu[4] ? C_WHITE : te_gray(RGB(40, 40, 46)));
+        vis_ellipse(120 + ((icos(a) * 99) >> 15), 112 + ((isin(a) * 99) >> 15), 5, 5, x <= end && vs.vu[NTRK] ? C_WHITE : te_gray(RGB(40, 40, 46)));
     }
     /* the mast */
     ROT(1443, 627, 0); ROT(1571, 627, 1); ROT(1571, 2507, 2); ROT(1443, 2507, 3);
     vis_poly(px, py, 4, C_WHITE);
     /* the sail: each band dim, then lit to its track's level */
-    for (i = 0; i < 4u; i++) {
+    for (i = 0; i < NTRK; i++) {
         int32_t g = 256 * (250 + 750 * vs.vu[i] / 1000) / 1000, xr0 = 1659 + (BAND[i][2] - 1659) * g / 256,
                 xr1 = 1659 + (BAND[i][3] - 1659) * g / 256;
-        uint16_t col = vs.flash[i] ? mix565(TE_COL[i], C_WHITE, vs.flash[i] * 13) : TE_COL[i];
+        uint16_t tc = vis_track_col(i);
+        uint16_t col = vs.flash[i] ? mix565(tc, C_WHITE, vs.flash[i] * 13) : tc;
         ROT(1659, BAND[i][0], 0); ROT(BAND[i][2], BAND[i][0], 1); ROT(BAND[i][3], BAND[i][1], 2); ROT(1659, BAND[i][1], 3);
         vis_poly(px, py, 4, DIMC[i]);
         ROT(1659, BAND[i][0], 0); ROT(xr0, BAND[i][0], 1); ROT(xr1, BAND[i][1], 2); ROT(1659, BAND[i][1], 3);

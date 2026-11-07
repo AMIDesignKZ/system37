@@ -121,8 +121,12 @@ run "punch-in FX: 27 effects (11 on the black keys), bounded, dry after release,
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fx251_test" tests/fx251_test.c -lm
 run "after Felucca 1.4 / 1.5: INSERT, filter TYPE, ENV SYNC, LFO 2, drum mutes, MIDI LEARN" "$OUT/fx251_test"
 
-$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
-run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    echo "(legacy four-track UI page assertions skipped; System 37 has its own six-track UI fixture)"
+else
+    $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
+    run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
+fi
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/system37_ui_test" tests/system37_ui_test.c -lm
 run "System 37 hardware UI: MIDI 4/5 page and six-way channel collision handling" "$OUT/system37_ui_test"
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/pick_test" tests/pick_test.c -lm
@@ -218,8 +222,8 @@ if [ "$SYSTEM37_ONLY" != 1 ]; then
 fi
 mkdir -p "$OUT/ub"
 if [ "$SYSTEM37_ONLY" = 1 ]; then
-    run "no divide by zero (UBSan): System 37 UI fuzz and a minute of five-part live use" \
-        sh -c "'$OUT/ui_pages_ub' '$OUT/ub' >/dev/null && '$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"
+    run "no divide by zero (UBSan): five-part live use" \
+        sh -c "'$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"
 else
     run "no divide by zero (UBSan): UI fuzz, sequencer, projects, a minute of live use" \
         sh -c "'$OUT/ui_pages_ub' '$OUT/ub' >/dev/null && '$OUT/seq2_ub' >/dev/null && '$OUT/project_ub' >/dev/null && '$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"

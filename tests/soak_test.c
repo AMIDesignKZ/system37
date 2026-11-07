@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* System 37 soak test: simulated minutes of random live use through the real audio path
- * (mix_block: sequencer, the 3 synth parts, the synthesised and sampled drum kits, the
+ * (mix_block: sequencer, all five synth parts, the synthesised and sampled drum kits, the
  * punch-in FX, the record arm, free takes, MIDI in), then everything stopped and released.
  * Checks: the output stays bounded, every block renders in time on the host, voices never
  * hang (all free a few seconds after the last note), the punch FX and the record state come
@@ -27,11 +27,12 @@ int main(int argc, char **argv)
     uint32_t b, i, k, held = 0, maxblock_ns = 0, events = 0, peak = 0;
     double total_ns = 0;
     struct timespec t0, t1;
+    static const uint8_t ENGINE[NPART] = {ENGI_ANALOG, ENGI_FM6, ENGI_FM6, ENGI_ANALOG, ENGI_FM6};
+    static const uint8_t PRESET[NPART] = {4, 5, 0, 12, 3};
     host_tracks_init();
     song.g[G_BPM] = 120;
-    host_preset(&trk[0], 0, 4);
-    host_preset(&trk[1], 1, 5);
-    host_preset(&trk[2], ENGI_FM6, 0);
+    for (k = 0; k < NPART; k++)
+        host_preset(&trk[k], ENGINE[k], PRESET[k]);
     TDRUM->p[P_E0] = DRUM_SAMPLED;
     for (k = LY_FX; k < LY_COUNT; k++)                        /* the layer buttons (SLOOP 2.0): bits 8.. */
         ly_bit[k] = 1u << (7u + k);

@@ -397,3 +397,15 @@ A separate `SYSTEM37_HOSTSIM` compile profile sets the host audio model to five 
 The first SMK-37 Pro target build in this isolated pipeline succeeded. The measured image was 581,740 bytes; `.data + .bss` was 98,188 / 98,304 bytes (116 bytes free), `.lowram` 28,384 / 29,240 bytes (856 bytes free), and `.pool` 335,340 / 344,064 bytes (8,724 bytes free). The image and pool fit, but the static RAM headroom is extremely tight and must be treated as a hard constraint.
 
 **Verification status:** the target package/identity/flash-region checks passed in that run. The System 37 host suite has not yet passed: the first isolated attempt exposed a test-harness configuration error (the board macro pulled SMK HAL dependencies into the generic host simulator). That was corrected by introducing `SYSTEM37_HOSTSIM`; the follow-up run is in progress. Golden renders, host CPU baselines and target instruction budgets have **not** yet been regenerated or approved. Do not accept a baseline update until the audio-health, voice-allocation, determinism and target-budget checks are clean. No emulator or physical-device test is claimed at this checkpoint.
+
+### 8 November 2026 — System37 test-suite audit and first fixes
+
+- The latest SMK-37 Pro firmware package/build stage passed; the host-validation stage failed.
+- Confirmed the inherited UI page assertions still assume four tracks and old GLO/Live-page mappings. The System37 pipeline now skips that legacy assertion binary while retaining the shared UI stress harness and the dedicated System37 UI test.
+- AddressSanitizer found a real six-track visualiser bounds defect in `ui_vis.c`: peak and visualiser arrays were still sized/indexed for four tracks. The visualiser now allocates state for all five synth parts plus drums, keeps the master separate, routes drum peaks through `TRK_DRUM`, and draws six track meters/bands.
+- The System37 editor fuzz harness treated the FUN7 project cache as an array of structs. System37 stores eight project-cache pointers (five RAM, two LOWRAM, one NOINIT); the harness now follows those pointers and covers all eight caches.
+- The FM6 bank test used the editor library-list count to construct a PTCH value. B4 is addressed by the persistent PTCH mapping (native factory count + bank slot), not the 72-entry editor library count.
+- The soak fixture previously initialized only three synth parts; it now initializes all five with a deliberate ANALOG/FM6 mix.
+- The host fixture now clears non-parameter song routing state between tests, avoiding stale selected/solo state leaking between cases.
+- No System37 golden audio, CPU or target-cost baseline has been regenerated. The existing target budget is a SLOOP/FELUCCA reference and currently flags System37's drum mixer and audio ISR against that legacy baseline; a separate System37 budget remains required.
+- FM6 factory-patch peak still exceeds the current 2×VOICE_FS test threshold (56,195 vs 48,000). This is not being waived or hidden; the patch/output scaling needs separate audio review.
