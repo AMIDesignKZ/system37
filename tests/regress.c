@@ -320,7 +320,7 @@ static void job_song(const job_t *j)
     finish();
 }
 
-/* CPU: parts[k] = {engine, preset, notes} (POLY, SUS 127, no ARP; SLICE: MODE LOOP), drums on 16ths if parts[3][0];
+/* CPU: parts[k] = {engine, preset, notes} (POLY, SUS 127, no ARP; SLICE: MODE LOOP), drums on 16ths if parts[NPART][0];
  * 0.5 s to settle, then 1 s counted */
 /* this thread's CPU time: unlike the wall clock it does not count the time the host gave to others */
 static uint64_t cpu_ns_now(void)
