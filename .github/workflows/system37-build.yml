@@ -49,13 +49,19 @@ jobs:
           echo "276579954f076886a6a7694f65dc71c034a63a2c204b76749065c0ac7b010d1b  $SDK/cfg_tool.bin" | sha256sum -c -
           echo "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d  $SDK/cfg/eq_cfg_hw.bin" | sha256sum -c -
 
-      - name: Build System 37 SMK-37 Pro only
+      - name: Build System 37 SMK-37 Pro
         run: |
           BOARD=smk37 MODEL=pro sh build.sh
           python3 tests/smk_pkg_test.py build/system37.fwsc "SMK-37 Pro_900"
-          # The host suite expects a package at this legacy path; keep its target
-          # disassembly and budget checks tied to the Pro build produced above.
-          cp build/system37.fwsc build/felucca.fwsc
+
+      - name: Build FM-1 reference for the legacy host and installer tests
+        run: |
+          # run_tests.sh exercises both the FM-1 code path and the SMK-37-specific
+          # host fixtures. Its OTA, loader, web and target-disassembly checks
+          # intentionally consume the FM-1 package at build/felucca.fwsc.
+          # Never alias the Pro package here: its product identity and flash map
+          # are deliberately different.
+          BOARD=fm1 sh build.sh
 
       - name: Run host, sanitizer, target-budget and web test suite
         env:
