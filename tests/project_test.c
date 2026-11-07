@@ -14,9 +14,9 @@
 #undef main
 #define PROJ_HOST 1
 #include "../firmware/src/project_v7.h"
-static uint32_t trk_def_engine(uint32_t i)       /* ui.c TRK_DEF: ANALOG, DIGITAL, LOFI */
+static uint32_t trk_def_engine(uint32_t i)       /* System37 defaults: Analog, FM6, Analog */
 {
-    static const uint8_t E[PROJ_V6_PARTS] = {0, 1, 3};
+    static const uint8_t E[PROJ_V6_PARTS] = {0, 1, 0};
     return i < PROJ_V6_PARTS ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
