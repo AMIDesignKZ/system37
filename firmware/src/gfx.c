@@ -79,21 +79,28 @@ _Static_assert(sizeof(theme_t) == 40u, "theme layout (the editor's Theme page wr
 static theme_t theme;                            /* the theme there is (theme_valid: project.c theme_check passed) */
 static uint8_t theme_valid, theme_on;
 /* the tracks' colours: full, two thirds, one third (the built-in ones as they always were) */
-#if BOARD_SMK37
-static const uint16_t TE_COL_DEF[6] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(176, 96, 232), RGB(0, 188, 212), RGB(255, 98, 26)};
-static const uint16_t TE_MID_DEF[6] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(118, 64, 156), RGB(0, 126, 142), RGB(170, 66, 18)};
-static const uint16_t TE_DIM_DEF[6] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(59, 32, 78), RGB(0, 64, 72), RGB(86, 32, 8)};
-static uint16_t TE_COL[6] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(176, 96, 232), RGB(0, 188, 212), RGB(255, 98, 26)};
-static uint16_t TE_MID[6] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(118, 64, 156), RGB(0, 126, 142), RGB(170, 66, 18)};
-static uint16_t TE_DIM[6] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(59, 32, 78), RGB(0, 64, 72), RGB(86, 32, 8)};
-#else
+#if !BOARD_SMK37
 static const uint16_t TE_COL_DEF[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
 static const uint16_t TE_MID_DEF[4] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(170, 66, 18)};
 static const uint16_t TE_DIM_DEF[4] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(86, 32, 8)};
-static uint16_t TE_COL[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
-static uint16_t TE_MID[4] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(170, 66, 18)};
-static uint16_t TE_DIM[4] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(86, 32, 8)};
+static const uint16_t TE_COL_EXT[2] = {RGB(0, 188, 212), RGB(255, 98, 26)};
+static const uint16_t TE_MID_EXT[2] = {RGB(0, 126, 142), RGB(170, 66, 18)};
+static const uint16_t TE_DIM_EXT[2] = {RGB(0, 64, 72), RGB(86, 32, 8)};
+static uint16_t TE_COL[6] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26), RGB(0, 188, 212), RGB(255, 98, 26)};
+static uint16_t TE_MID[6] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(170, 66, 18), RGB(0, 126, 142), RGB(170, 66, 18)};
+static uint16_t TE_DIM[6] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(86, 32, 8), RGB(0, 64, 72), RGB(86, 32, 8)};
+#else
+static const uint16_t TE_COL_DEF[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(176, 96, 232)};
+static const uint16_t TE_MID_DEF[4] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(118, 64, 156)};
+static const uint16_t TE_DIM_DEF[4] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(59, 32, 78)};
+static const uint16_t TE_COL_EXT[2] = {RGB(0, 188, 212), RGB(255, 98, 26)};
+static const uint16_t TE_MID_EXT[2] = {RGB(0, 126, 142), RGB(170, 66, 18)};
+static const uint16_t TE_DIM_EXT[2] = {RGB(0, 64, 72), RGB(86, 32, 8)};
+static uint16_t TE_COL[6] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(176, 96, 232), RGB(0, 188, 212), RGB(255, 98, 26)};
+static uint16_t TE_MID[6] = {RGB(26, 82, 170), RGB(20, 136, 76), RGB(170, 132, 16), RGB(118, 64, 156), RGB(0, 126, 142), RGB(170, 66, 18)};
+static uint16_t TE_DIM[6] = {RGB(14, 40, 86), RGB(10, 66, 38), RGB(86, 66, 8), RGB(59, 32, 78), RGB(0, 64, 72), RGB(86, 32, 8)};
 #endif
+
 static uint16_t rgb565_scale(uint32_t c, uint32_t num, uint32_t den)
 {
     uint32_t r = ((c >> 11) & 31u) * num / den, g = ((c >> 5) & 63u) * num / den, b = (c & 31u) * num / den;
@@ -182,10 +189,10 @@ static void palette_set(uint32_t i)              /* built-in palette i, or the t
     for (k = 0; k < 4u; k++)
         te_g[k] = te_gray(TE_G_DEF[k]);
     for (k = 0; k < 6u; k++) {
-        uint16_t base = cu && k < 4u ? theme.trk[k] : TE_COL_DEF[k];
+        uint16_t base = cu && k < 4u ? theme.trk[k] : (k < 4u ? TE_COL_DEF[k] : TE_COL_EXT[k - 4u]);
         TE_COL[k] = base;
-        TE_MID[k] = cu && k < 4u ? rgb565_scale(base, 2u, 3u) : TE_MID_DEF[k];
-        TE_DIM[k] = cu && k < 4u ? rgb565_scale(base, 1u, 3u) : TE_DIM_DEF[k];
+        TE_MID[k] = cu && k < 4u ? rgb565_scale(base, 2u, 3u) : (k < 4u ? TE_MID_DEF[k] : TE_MID_EXT[k - 4u]);
+        TE_DIM[k] = cu && k < 4u ? rgb565_scale(base, 1u, 3u) : (k < 4u ? TE_DIM_DEF[k] : TE_DIM_EXT[k - 4u]);
     }
 }
 
