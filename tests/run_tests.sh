@@ -72,6 +72,9 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 $CC -o "$OUT/arranger_test" tests/arranger_test.c
 run "song order, timing, repeats and missing scenes" "$OUT/arranger_test"
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    echo "(legacy four-track scene/project audio fixture deferred until FUN7 is connected to the live runtime)"
+else
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
 run "song: four simultaneous tracks, scene transition and stop" "$OUT/song_audio_test" "$OUT/song-demo.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
@@ -79,10 +82,19 @@ run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_tes
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_arm_test" tests/song_arm_test.c -lm
 run "song screen: a confirmation left unconfirmed asks again weeks later (no load / replace on one press)" "$OUT/song_arm_test"
 
+
+fi
+
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c -lm
 run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    echo "(legacy seq2 scene-chain tests use the FUN6 project runtime; FUN7 catalogue/prefetch tests run above)"
+else
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo, nudge, locks" "$OUT/seq2_test"
+
+fi
+
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hold_rec_test" tests/hold_rec_test.c -lm
 run "2.8.3: a note held under others (live, recorded, overdubbed), MIDI in overflow" "$OUT/hold_rec_test"
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/len_test" tests/len_test.c -lm
@@ -199,11 +211,19 @@ run "SMK-37 every app erase goes through the stock marker's hook; the boot check
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
 UBSAN="${CC_UB:-cc} -O1 -w $HOSTSIM_CFLAGS -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
-$UBSAN -o "$OUT/ui_pages_ub" tests/ui_pages_test.c -lm && $UBSAN -o "$OUT/seq2_ub" tests/seq2_test.c -lm &&
-    $UBSAN -o "$OUT/project_ub" tests/project_test.c -lm && $UBSAN -o "$OUT/soak_ub" tests/soak_test.c -lm || fail=1
+$UBSAN -o "$OUT/ui_pages_ub" tests/ui_pages_test.c -lm && $UBSAN -o "$OUT/soak_ub" tests/soak_test.c -lm || fail=1
+if [ "$SYSTEM37_ONLY" != 1 ]; then
+    UBSAN_LEGACY="${CC_UB:-cc} -O1 -w -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
+    $UBSAN_LEGACY -o "$OUT/seq2_ub" tests/seq2_test.c -lm && $UBSAN_LEGACY -o "$OUT/project_ub" tests/project_test.c -lm || fail=1
+fi
 mkdir -p "$OUT/ub"
-run "no divide by zero (UBSan): UI fuzz, sequencer, projects, a minute of live use" \
-    sh -c "'$OUT/ui_pages_ub' '$OUT/ub' >/dev/null && '$OUT/seq2_ub' >/dev/null && '$OUT/project_ub' >/dev/null && '$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    run "no divide by zero (UBSan): System 37 UI fuzz and a minute of five-part live use" \
+        sh -c "'$OUT/ui_pages_ub' '$OUT/ub' >/dev/null && '$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"
+else
+    run "no divide by zero (UBSan): UI fuzz, sequencer, projects, a minute of live use" \
+        sh -c "'$OUT/ui_pages_ub' '$OUT/ub' >/dev/null && '$OUT/seq2_ub' >/dev/null && '$OUT/project_ub' >/dev/null && '$OUT/soak_ub' 1 >/dev/null && echo 'no divide by zero'"
+fi
 
 # the second core's host double (tests/cpu1_host.c, firmware/src/cpu1.h): inline, a thread, a slow thread, a lost
 # job; and the thread under ThreadSanitizer (the render's shared state shows up here once it uses core 1)
@@ -327,8 +347,14 @@ if [ "$SYSTEM37_ONLY" = 1 ]; then
 else
     run "TRACKS: four-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
 fi
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    echo "(legacy FUN1–FUN6 project import tests are outside System 37's compatibility scope)"
+else
 $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
 run "legacy project formats FUN1–FUN6, FUN7 migration, capture / apply, autosave" "$OUT/project_test"
+
+fi
+
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
 mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo
