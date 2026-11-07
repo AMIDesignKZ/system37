@@ -591,10 +591,21 @@ static void cost(void)
     printf("fm6: cost, host instructions per sample and voice (6 voices held; device estimate 1.7 %% per 100):\n");
     for (pi = 0; pi <= FM6_NFACTORY; pi++) {
         uint8_t v[FP_SIZE + 1u];
-        if (pi < FM6_NFACTORY)
+        char name[16];
+        if (pi < FM6_NFACTORY) {
             fm6_unpack(FM6_FACTORY[pi], v);
+            if (pi < FM6_NATIVE_N)
+                snprintf(name, sizeof name, "%s", N_FM6_FACTORY[pi]);
+            else {
+                memcpy(name, v + FP_NAME, 10u);
+                name[10] = 0;
+            }
+        } else {
+            memcpy(v, heavy, sizeof v);
+            snprintf(name, sizeof name, "%s", "(6 carriers)");
+        }
         c = (mix_cost(pi < FM6_NFACTORY ? v : heavy, 6) - idle) / 6;
-        printf("fm6:   %-12s %5.0f  ~%.2f %%\n", pi < FM6_NFACTORY ? N_FM6_FACTORY[pi] : "(6 carriers)", c, c * 0.017);
+        printf("fm6:   %-12s %5.0f  ~%.2f %%\n", name, c, c * 0.017);
         worst = c > worst ? c : worst;
     }
     snprintf(what, sizeof what, "cost: at most %.0f instructions a sample and voice (~%.1f %% on the device, 6 voices ~%.0f %%; limit %.0f)",
