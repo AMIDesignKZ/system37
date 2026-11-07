@@ -236,7 +236,9 @@ if [ -z "$SKIP_ASAN" ]; then
     else
         echo "(stress under ASan: this compiler has no AddressSanitizer, skipped)"
     fi
-    if $ASAN -O1 -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_asan" tests/song_audio_test.c -lm 2>/dev/null; then
+    if [ "$SYSTEM37_ONLY" = 1 ]; then
+        echo "(legacy four-track song-scene ASan fixture: covered by the System 37 FUN7 / catalogue tests)"
+    elif $ASAN -O1 -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_asan" tests/song_audio_test.c -lm 2>/dev/null; then
         run "song scenes and project snapshots under ASan + UBSan" "$OUT/song_audio_asan"
     else
         echo "(song scene ASan test: this compiler has no compatible AddressSanitizer, skipped)"
