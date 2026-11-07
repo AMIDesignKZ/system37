@@ -169,3 +169,17 @@ The build workflow is intentionally scoped to **SMK-37 Pro only** while the firs
 3. Inspect the generated Pro artifact and factory patch labels, then test FM6 patch selection and both DX7 banks in the emulator.
 4. Only after those checks, prepare a controlled hardware test on the SMK-37 Pro. Do not flash while the complete suite is red.
 5. Update this document with exact run IDs, commit SHA, artifact name, and any remaining hardware-only checks. Keep Elite/MKE/FМ-1 outside the build matrix until Pro is signed off.
+
+
+## 9. Follow-up audit — 7 November 2026
+
+Follow-up source review completed against the active `extended-firmware` branch. Current audit checkpoint: `7ef1eb132c50344001b1573bd6b1b980f7ba3d4b`.
+
+- Confirmed DX7 ROM integration is already complete at source/build-generation level: `assets/dx7/rom1a.syx.gz` and `rom1b.syx.gz` are checked in; the generator validates Yamaha bulk-dump framing, 7-bit payload and checksum, then generates 64 ROM voices alongside eight native FM6 voices (72 factory voices total). The 27 writable user slots remain.
+- Targeted local validation of both committed ROM assets passed: each decompresses to 4,104 bytes; both contain 32 valid 128-byte voices with valid framing, 7-bit payload and Yamaha checksum.
+- Found a first-catalogue lifecycle defect: section store/erase returned after initial catalogue creation without replaying the requested overlay. In particular, erasing a section before catalogue initialisation could leave it persisted in flash and make it reappear after restart.
+- Fixed the initialise-then-retry paths in `firmware/src/project.c` (commit `c0547407729952385828d209aaeeb29729a068cb`).
+- Added section-H erase-overlay round-trip coverage, including default-section selection and byte-identical preservation of A–G (`tests/section_catalog_test.c`, commit `7ef1eb132c50344001b1573bd6b1b980f7ba3d4b`). This C regression test has been added but has not yet been executed in this environment.
+- The last inspected GitHub Actions run is still run `42348468647` on commit `bade3bea`: the SMK-37 Pro package build and package validation passed, but the host/sanitizer/web suite stopped at the missing `memset`/`memcpy` declarations in `section_catalog.c`. Those declarations were added in `db178128`; subsequent catalogue scratch-layout and runtime/test changes are newer than that run. Do not treat the current branch as fully build- or test-verified until a new complete run passes.
+- The current branch's product-spec/code discrepancies still need a decision: the plan describes a 16-entry arrangement and 12 locks with no per-step microtiming, while current SMK-37 source defines 32 arrangement positions and FUN7 still stores 24 locks plus packed microtiming. Keep these visible as unresolved product/data-model alignment items.
+- No emulator or physical SMK-37 Pro validation is claimed. Do not flash until the current Pro build, complete test suite and memory budgets pass.
