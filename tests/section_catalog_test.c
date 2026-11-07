@@ -209,5 +209,23 @@ int main(void)
                  s37_cat_prepare_overlay(&source, &io, &map, &state, &scratch,
                                          &replacement, 2u, 4u, 0u) != 0);
 
+    bad += check("prepare erase overlay for section H",
+                 s37_cat_prepare_erase_overlay(&source, &io, &map, &state, &scratch, 7u) == 0);
+    bad += check("commit section H erase overlay",
+                 sm_save_stream(&io, &map, s37_cat_overlay_read, &source,
+                                S37_CAT_PAYLOAD_SIZE, &state) == 0);
+    bad += check("erased section H is absent and default moves to section A",
+                 s37_cat_validate(&io, &map, &state, &scratch, &header) == 0 &&
+                 header.present_mask == 0x7Fu && header.default_section == 0u &&
+                 s37_cat_load_section(&io, &map, &state, 7u, &loaded, NULL) != 0);
+    {
+        int all_match = 1;
+        for (i = 0; i < 7u; ++i)
+            all_match &= s37_cat_load_section(&io, &map, &state, (uint8_t)i,
+                                              &loaded, NULL) == 0 &&
+                         !memcmp(&loaded, &expected[i], sizeof loaded);
+        bad += check("erasing H leaves sections A-G byte-identical", all_match);
+    }
+
     return bad ? 1 : 0;
 }
