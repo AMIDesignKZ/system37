@@ -26,13 +26,20 @@ export AC79_SDK="${AC79_SDK:-$HOME/fw-AC79_AIoT_SDK}"
 cd "$(dirname "$0")/.."
 OUT=build/host
 mkdir -p "$OUT"
-CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
+SYSTEM37_ONLY=${SYSTEM37_ONLY:-0}
+BOARD_CFLAGS=""
+[ "$SYSTEM37_ONLY" = 1 ] && BOARD_CFLAGS="-DBOARD_SMK37=1"
+CC="${CC:-cc} -O1 -Wall -Wno-unused-function $BOARD_CFLAGS"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
-FWSC=build/felucca.fwsc
-[ -f "$FWSC" ] || FWSC=build/sloop-pro.fwsc
-[ -f "$FWSC" ] || { echo "run ./build.sh first"; exit 1; }
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    FWSC=build/system37.fwsc
+else
+    FWSC=build/felucca.fwsc
+    [ -f "$FWSC" ] || FWSC=build/sloop-pro.fwsc
+fi
+[ -f "$FWSC" ] || { echo "run the matching firmware build first"; exit 1; }
 # the generated headers the FM6 engine needs (tools/build.py generate() makes them too; no Pillow needed)
 mkdir -p build/gen
 [ build/gen/felucca_tables.h -nt tools/gen_tables.py ] || python3 tools/gen_tables.py build/gen/felucca_tables.h
@@ -257,6 +264,19 @@ run "USB RATE 44.1: the descriptors of a build without 48 kHz (SLOOP 2.4), byte 
 uac_in_app() { ${CC%% *} -E -Ibuild/gen -Ifirmware/hal -Ifirmware/src firmware/src/felucca.c 2>/dev/null | grep -q uac_service; }
 run "USB audio input: built into the firmware (FELUCCA_UAC set before usb.c)" uac_in_app
 
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    # System 37 package, OTA staging and loader windows. No FM-1 reference package is built or consumed.
+    $CC -o "$OUT/ota_test_smk" tests/ota_test.c
+    run "System 37 M-UPGRADE entry (SMK staging and product identity)" "$OUT/ota_test_smk" "$FWSC"
+    $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test.c
+    run "SMK-37 flash map: protected regions, storage objects and stock marker" "$OUT/smk_flash_test"
+    head -c 200000 build/felucca.bin > "$OUT/old_app.bin"
+    python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
+    python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
+    run "System 37 package layout and product identity" python3 tests/smk_pkg_test.py "$FWSC" "SMK-37 Pro_900"
+    $CC -o "$OUT/ldr_test_smk" tests/ldr_test.c
+    run "System 37 update loader: protected SMK-37 ranges remain untouched" "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
+else
 $CC -o "$OUT/ota_test" tests/ota_test.c
 run "M-UPGRADE entry" "$OUT/ota_test" "$FWSC"
 
@@ -284,6 +304,9 @@ for m in "elite:SMK-37 Elite_900" "mke:MKE-P37_900"; do
 done
 $CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c
 run "update loader, SMK-37 Pro: app area 0x4000-0x9CFFF, protected ranges untouched"     "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
+
+
+fi
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
@@ -315,21 +338,29 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
 # metronome under every mode of the host double of core 1, and under ThreadSanitizer
 run "the render split over the two cores: every mode of the second core's host double (tests/cpu1_modes.sh)" sh tests/cpu1_modes.sh
 
-run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
-run "the offline editor (one file, nothing next to it); the offline site (sw.js, manifest)" python3 tests/site_test.py
-
-if command -v node >/dev/null 2>&1; then
-    run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
-    run "SLOOP Pro installer page: one package per model, resume, refusals, fr / en / ja (make_site --pro)" node web/test_pro.mjs
-    rm -rf "$OUT/pwa-site" && python3 web/make_site.py "$FWSC" 2.7 "$OUT/pwa-site" >/dev/null &&
-        run "the site without internet in Chromium (skipped without Playwright)" node tests/pwa_test.mjs "$OUT/pwa-site"
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    # The FM-1 installer and legacy offline-site assertions are intentionally outside this target suite.
+    if command -v node >/dev/null 2>&1; then
+        run "System 37 web editor protocol and six-track/section regression tests" node web/test_web.mjs
+    else
+        echo "== skip System 37 web tests (no node)"
+    fi
 else
-    echo "== skip web tests (no node)"
+    run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
+    run "the offline editor (one file, nothing next to it); the offline site (sw.js, manifest)" python3 tests/site_test.py
+    if command -v node >/dev/null 2>&1; then
+        run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
+        run "SLOOP Pro installer page: one package per model, resume, refusals, fr / en / ja (make_site --pro)" node web/test_pro.mjs
+        rm -rf "$OUT/pwa-site" && python3 web/make_site.py "$FWSC" 2.7 "$OUT/pwa-site" >/dev/null &&
+            run "the site without internet in Chromium (skipped without Playwright)" node tests/pwa_test.mjs "$OUT/pwa-site"
+    else
+        echo "== skip web tests (no node)"
+    fi
 fi
 
 # the browser audio preview (web editor): the same engines in WASM as on the host, when it is built
 # (python3 tools/build_preview.py: Emscripten, or clang + wasm-ld)
-if [ -f build/preview/sloop-preview.wasm ]; then
+if [ "$SYSTEM37_ONLY" != 1 ] && [ -f build/preview/sloop-preview.wasm ]; then
     run "the editor's audio preview: WASM == host, the selectable Analog and FM6 engines" sh tests/run_preview_tests.sh
 fi
 [ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED" || { echo "HOST TESTS FAILED"; exit 1; }
