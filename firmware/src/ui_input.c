@@ -160,9 +160,9 @@ UI_SMALL static uint32_t keys_lit(void)
                 m |= 1u << key_of_white(NTRK + i);
         }
         if (fill_now)
-            m |= 1u << key_of_white(12);
+            m |= 1u << key_of_white(2u * NTRK);
         if (fill_arm || fill_bar_on)
-            m |= 1u << key_of_white(13);
+            m |= 1u << key_of_white(2u * NTRK + 1u);
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
