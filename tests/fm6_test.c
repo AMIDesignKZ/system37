@@ -450,7 +450,7 @@ static void macros(void)
         fm6_poll();
         check("PTCH F5 loads the fifth factory patch (main loop)", fm6_slot[0] == 4u &&
               !memcmp(fm6_patch[0] + FP_NAME, "SOFT PAD  ", 10));
-        trk[0].p[P_E7] = FM6_NFACTORY + 3;
+        trk[0].p[P_E7] = FM6_NATIVE_N + 3;
         fm6_poll();
         check("PTCH B4 of an empty bank: the init voice", !memcmp(fm6_patch[0] + FP_NAME, "INIT VOICE", 10));
     }
@@ -668,7 +668,7 @@ static void bank(void)
         setup(v, 0);
         trk[0].p[P_E7] = FM6_NFACTORY + 3;
         fm6_poll();
-        check("bank: PTCH B4 loads the stored patch (main loop)", fm6_slot[0] == FM6_NFACTORY + 3u &&
+        check("bank: PTCH B4 loads the stored patch (main loop)", fm6_slot[0] == FM6_NATIVE_N + 3u &&
               !memcmp(fm6_patch[0] + FP_NAME, "GLASS BELL", 10));
         fm6_unpack(FM6_FACTORY[5], v);                    /* WOOD BARS over it */
         fm6_pack(v, pk);
