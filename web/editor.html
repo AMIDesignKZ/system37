@@ -3372,10 +3372,12 @@ function makeMockDevice(opt = {}) {
     if (demo && pr.pat && seqEmpty()) loadPattern(pr.pat - 1);
     if (st.engine === FM6_E) fm6Slot(st.tracks[st.sel], st.p[P_E0 + 7]);   /* eng_fm6.c fm6_track_loaded: the slot's patch */
   }
-  /* PTCH value s -> the track's patch: F1..F8 the factory, B1..B27 the bank (empty: the init voice) */
+  /* PTCH values retain firmware order: F1..F8, B1..B27, then DX7 ROM 1A/1B.
+     The offline simulator embeds native patches and the writable bank; live ROM data is read from the device. */
   function fm6Slot(t, s) {
     const nf = FM6.FACTORY_PK.length;
-    t.fm6 = (s < nf ? FM6.FACTORY_PK[s] : st.fm6bank[s - nf] || FM6.INIT_PK).slice();
+    const pk = s < nf ? FM6.FACTORY_PK[s] : s < 35 ? st.fm6bank[s - 8] : null;
+    t.fm6 = (pk || FM6.INIT_PK).slice();
   }
   function setEngine(ei) {
     if (drumSel()) return;
