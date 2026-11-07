@@ -23,7 +23,9 @@
 #define PROJ_V7_PARTS 5u
 #define PROJ_V7_DRUM_TRACK 5u
 #define PROJ_V7_GLOBALS 32u
-#define PROJ_LIVE_DRUM_TRACK PROJ_V7_DRUM_TRACK
+/* The auxiliary drum-timbre data follows the active board's live track index:
+ * FUN6 stores it in track 4; FUN7 stores it in track 6. */
+#define PROJ_LIVE_DRUM_TRACK TRK_DRUM
 #define PROJ_V7_FILL_BYTES (PROJ_V7_STEPS / 4u)
 
 #define PROJ_V6_NC ((uint32_t)P_ITYPE)
