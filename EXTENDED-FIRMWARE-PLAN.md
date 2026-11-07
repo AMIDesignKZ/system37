@@ -426,3 +426,5 @@ The first SMK-37 Pro target build in this isolated pipeline succeeded. The measu
 - Bounded the CI-only soak and stress workloads (2-minute soak, 12,000 stress frames, 4,000 ASan frames). The longer local defaults remain available; this keeps CI validation bounded without removing the stress tests.
 
 - The CI test stage now has a 20-minute shell timeout and skips optional Callgrind instrumentation while retaining CPU-time measurements. The regression timer checks the thread CPU clock and falls back to process CPU time, then monotonic time if the preferred clock is unavailable.
+
+- The mixer-side web mock now follows the same System37 profile as the INFO/TRACK test: six tracks, drum track at index 5, and drum-level/step operations routed to that index. Legacy tests continue to use index 3.

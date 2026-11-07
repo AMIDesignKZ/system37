@@ -452,7 +452,9 @@ async function editorSetGate() {
 /* ------------------------------------------------ editor v3: the mixer (Tracks tab) --- */
 async function editorMixer() {
   const C = E.CMD;
-  const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
+  const system37 = process.env.SYSTEM37_ONLY === "1";
+  const expectedNtrk = system37 ? 6 : 4, drumIndex = expectedNtrk - 1;
+  const { m, rq, ev, done } = attachMock({ watchMs: 1000, system37 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const PAN = 39, MUTE = 40;
   const m0 = await E.mixer.read(rq, info, { pan: PAN });
@@ -460,7 +462,7 @@ async function editorMixer() {
     && m0.tracks.every((x) => Number.isInteger(x.level) && (x.mute === 0 || x.mute === 1)), "mixer: read = TRACK + pan of every track (TRACK_DUMP)");
   /* level / mute of a track that is not selected, and of the drum track (G_DRLVL) */
   const a = await E.mixer.setMix(rq, 2, 70, 1);
-  const b = await E.mixer.setMix(rq, 3, 200, 0);
+  const b = await E.mixer.setMix(rq, drumIndex, 200, 0);
   const m1 = await E.mixer.read(rq, info, { pan: PAN });
   const td2 = E.parse[C.TRACK_DUMP](await rq(E.req.trackDump(2)), info);
   ok(a.level === 70 && a.mute === 1 && b.level === 127 && m.state.g[25] === 127 && m1.tracks[2].level === 70 && m1.tracks[2].mute === 1
@@ -484,14 +486,14 @@ async function editorMixer() {
   const m3 = await E.mixer.read(rq, info, { pan: PAN });
   ok(ch && ch.scope === 0 && ch.id === 0 && ch.value === 33 && m3.tracks[0].level === 33 && m3.tracks[1].armed === 1 && m3.tracks[0].armed === 0,
     "mixer: device-side level (CHANGED push) and REC arm read back");
-  await rq(E.req.track(3));
+  await rq(E.req.track(drumIndex));
   m.sim.level(90);
   await sleep(10);
   const chd = E.parse[C.CHANGED](ev.pushes.filter((f) => f.cmd === C.CHANGED).pop().a);
   ok(chd.scope === 1 && chd.id === 25 && chd.value === 90, "mixer: drum level on the device pushes G_DRLVL");
   /* the drum track's steps: GM notes, shown and typed by name */
   const st = [];
-  for (let i = 0; i < 16; i++) st.push(E.parse[C.TRACK_STEP](await rq(E.req.trackStep(3, i))));
+  for (let i = 0; i < 16; i++) st.push(E.parse[C.TRACK_STEP](await rq(E.req.trackStep(drumIndex, i))));
   const names = st[0].notes.slice(0, st[0].n).map(E.drumName).join(" ");
   ok(names === "KICK CHH" && st[4].notes.slice(0, 2).map(E.drumName).join(" ") === "SNARE CHH" && E.drumName(20) === "20",
     "mixer: the mock drum track holds a GM pattern (KICK CHH ...)");
