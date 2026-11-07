@@ -342,7 +342,7 @@ $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_tes
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
-run "TRACKS: ${NPART:-five}-part synth mix plus drums, live recording, voice budget, engine switch and cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
+run "TRACKS: all synth parts plus drums, live recording, voice budget, engine switch and cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
 if [ "$SYSTEM37_ONLY" = 1 ]; then
     echo "(legacy FUN1–FUN6 project import tests are outside System 37's compatibility scope)"
 else
