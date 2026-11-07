@@ -386,3 +386,14 @@ The voice lifecycle, sequencer keyboard mapping and FX core-splitting logic have
 ### Host-test scope update
 
 The host runner and target instruction-budget function list have also been narrowed to the System 37 engine set. Tests for the removed SAMPLE/GRAIN, NOISE and PHYS synth engines are no longer run; dedicated drum synthesis, 808/909 kits, sampled-drum playback, Analog and FM6 coverage remain. The regression golden renders, host CPU baseline and target instruction budget need regeneration and review after the next successful build. They have not yet been regenerated.
+
+
+## Progress checkpoint — System 37 test isolation and five-part DSP coverage (7 November 2026)
+
+The CI path is now intended to validate the SMK-37 System 37 target directly; the FM-1 reference build has been removed from the workflow. The test runner has a `SYSTEM37_ONLY=1` mode which consumes `build/system37.fwsc`, runs the SMK-37 package/flash/loader checks, and omits the FM-1 installer and legacy SLOOP site/installer assertions. The legacy four-slot user-drum-kit fixture is also excluded pending a System 37-specific fixture for the two-slot layout.
+
+A separate `SYSTEM37_HOSTSIM` compile profile sets the host audio model to five synth parts plus the sixth drum track without enabling board-HAL code that a host simulator cannot provide. The DSP regression checks have been adjusted accordingly: the shared eight-voice budget and per-part cap cover all five synth parts; voice stealing and held-note checks exercise all other synth parts; MIDI routing checks cover channels 1–5, 10 and 16; CPU mixes include five synth parts; and the golden song render now contains five synth parts plus drums.
+
+The first SMK-37 Pro target build in this isolated pipeline succeeded. The measured image was 581,740 bytes; `.data + .bss` was 98,188 / 98,304 bytes (116 bytes free), `.lowram` 28,384 / 29,240 bytes (856 bytes free), and `.pool` 335,340 / 344,064 bytes (8,724 bytes free). The image and pool fit, but the static RAM headroom is extremely tight and must be treated as a hard constraint.
+
+**Verification status:** the target package/identity/flash-region checks passed in that run. The System 37 host suite has not yet passed: the first isolated attempt exposed a test-harness configuration error (the board macro pulled SMK HAL dependencies into the generic host simulator). That was corrected by introducing `SYSTEM37_HOSTSIM`; the follow-up run is in progress. Golden renders, host CPU baselines and target instruction budgets have **not** yet been regenerated or approved. Do not accept a baseline update until the audio-health, voice-allocation, determinism and target-budget checks are clean. No emulator or physical-device test is claimed at this checkpoint.
