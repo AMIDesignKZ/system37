@@ -5,7 +5,7 @@
 #   tests/run_tests.sh
 #
 # Regression suite (tests/regress.c, tests/target_budget.py; details at the top of regress.c):
-#   golden renders  every selectable synth engine x preset, the drum kit, voice modes, FX sends, a 4-track mix: one hash
+#   golden renders  every selectable synth engine x preset, the drum kit, voice modes, FX sends, a six-track mix: one hash
 #                   each in tests/golden.txt. A change of the sound fails with the list of renders.
 #   health          clipping, DC, peak level, voices free after the release, silence at the end.
 #   CPU             cost / sample per preset and mix, relative to the idle + drums mix (tests/cpu_baseline.txt,
@@ -29,7 +29,8 @@ mkdir -p "$OUT"
 SYSTEM37_ONLY=${SYSTEM37_ONLY:-0}
 BOARD_CFLAGS=""
 [ "$SYSTEM37_ONLY" = 1 ] && BOARD_CFLAGS="-DBOARD_SMK37=1"
-CC="${CC:-cc} -O1 -Wall -Wno-unused-function $BOARD_CFLAGS"
+CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
+CC_AUDIO="$CC $BOARD_CFLAGS"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
@@ -69,7 +70,7 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 $CC -o "$OUT/arranger_test" tests/arranger_test.c
 run "song order, timing, repeats and missing scenes" "$OUT/arranger_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
 run "song: four simultaneous tracks, scene transition and stop" "$OUT/song_audio_test" "$OUT/song-demo.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
 run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_test" "$OUT/song-screen.ppm"
@@ -82,7 +83,7 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo, nudge, locks" "$OUT/seq2_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hold_rec_test" tests/hold_rec_test.c -lm
 run "2.8.3: a note held under others (live, recorded, overdubbed), MIDI in overflow" "$OUT/hold_rec_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/len_test" tests/len_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/len_test" tests/len_test.c -lm
 run "2.8.3: SEQ > NOTES, LEN under later notes, MONO / STEP FULL, shorter, delete" "$OUT/len_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_steal_test" tests/drum_steal_test.c -lm
 run "2.8.3: drum voices on a busy beat, every kit: no kick cut by another sound" "$OUT/drum_steal_test"
@@ -140,7 +141,7 @@ pedal_wired() {
 run "SLOOP Pro sustain pedal: read in the audio context, before DAW mode takes the keys" pedal_wired
 $CC -o "$OUT/smk_wheel_test" tests/smk_wheel_test.c
 run "SMK-37 wheels: BEND UP / DOWN, the calibration (full travel = full range, re-centre), back to 0 at rest" "$OUT/smk_wheel_test"
-$CC -O2 -w -DSMK_MIX=1 -Ibuild/gen -Ifirmware/src -o "$OUT/smk_mix_test" tests/smk_mix_test.c -lm
+$CC_AUDIO -O2 -w -DSMK_MIX=1 -Ibuild/gen -Ifirmware/src -o "$OUT/smk_mix_test" tests/smk_mix_test.c -lm
 run "SMK-37 LIMITER: SOFT leaves held chords alone at power-on, catches peaks, no clipping; CLASSIC as before" "$OUT/smk_mix_test"
 $CC -o "$OUT/smk_knobs_test" tests/smk_knobs_test.c
 run "SMK-37 KNOB LAYOUT: FM-1 / SMK, each knob one role, calibration per printed knob, labels" "$OUT/smk_knobs_test"
@@ -165,7 +166,7 @@ pads_rec_menu() {
 run "SMK-37 pads: DRUM KIT hits recorded into the drum track; PLAY / REC work in the HOME menu" pads_rec_menu
 $CC -o "$OUT/smk_daw_test" tests/smk_daw_test.c
 run "SMK-37 DAW mode: the DEFAULT map, types, MIDI bytes (CC, notes, bend, MMC), knobs, toggles, rate, flash object" "$OUT/smk_daw_test"
-$CC -O2 -w -DSMK_MIX=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/daw_ui_test" tests/daw_ui_test.c -lm
+$CC_AUDIO -O2 -w -DSMK_MIX=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -Itests -o "$OUT/daw_ui_test" tests/daw_ui_test.c -lm
 run "SMK-37 DAW mode on the UI: < + >, knobs / faders / buttons / wheels, banks, PATCH, the editor, the menu" "$OUT/daw_ui_test" "$OUT"
 # DAW mode, the audio context's part: the keys and pads go to seq.c daw_* (not the synth) while in DAW mode, the pads
 # whatever the layer (smk_input.h SMK_EXT_DAW), a release where its press went; the faders, the wheels, the volume knob
@@ -191,7 +192,7 @@ stock_hooked() {
 run "SMK-37 every app erase goes through the stock marker's hook; the boot check runs" stock_hooked
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
-UBSAN="${CC_UB:-cc} -O1 -w -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
+UBSAN="${CC_UB:-cc} -O1 -w $BOARD_CFLAGS -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
 $UBSAN -o "$OUT/ui_pages_ub" tests/ui_pages_test.c -lm && $UBSAN -o "$OUT/seq2_ub" tests/seq2_test.c -lm &&
     $UBSAN -o "$OUT/project_ub" tests/project_test.c -lm && $UBSAN -o "$OUT/soak_ub" tests/soak_test.c -lm || fail=1
 mkdir -p "$OUT/ub"
@@ -206,7 +207,7 @@ run "second core, host double: a thread (CORES=2)" env CORES=2 "$OUT/cpu1_test"
 run "second core, host double: a thread with random delays (CORES=2 CHAOS=7)" env CORES=2 CHAOS=7 "$OUT/cpu1_test"
 run "second core, host double: a lost job, the hold and the fallback (CPU1_TIMEOUT_AT=777)" env CORES=2 CPU1_TIMEOUT_AT=777 "$OUT/cpu1_test"
 if [ -z "$SKIP_TSAN" ]; then
-    TSAN="${CC_UB:-cc} -O1 -g -w -fsanitize=thread -Ifirmware/src"
+    TSAN="${CC_UB:-cc} -O1 -g -w $BOARD_CFLAGS -fsanitize=thread -Ifirmware/src"
     if $TSAN -o "$OUT/cpu1_tsan" tests/cpu1_test.c 2>/dev/null; then
         run "second core, host double under ThreadSanitizer (CORES=2 CHAOS=3)" env CORES=2 CHAOS=3 "$OUT/cpu1_tsan"
     else
@@ -216,14 +217,14 @@ else
     echo "(cpu1 under TSan: SKIP_TSAN=1, skipped)"
 fi
 
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
 run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voices, idle after stop)" "$OUT/soak_test" "${SOAK_MIN:-10}"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/stress_test" tests/stress_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/stress_test" tests/stress_test.c -lm
 run "stress (2.4): FONT_L = FONT_S at 2x, hard random use of every 2.4 addition, clean stop" "$OUT/stress_test" "${STRESS_FRAMES:-40000}"
 # the same under AddressSanitizer + UBSan: any read or write out of bounds stops it (left shifts of negative values
 # and the FM6 phase's wrap-around are left out: the DSP's two's complement idioms, as every compiler builds them)
 if [ -z "$SKIP_ASAN" ]; then
-    ASAN="${CC_UB:-cc} -O1 -g -w -fsanitize=address,undefined -fno-sanitize=shift-base,signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
+    ASAN="${CC_UB:-cc} -O1 -g -w $BOARD_CFLAGS -fsanitize=address,undefined -fno-sanitize=shift-base,signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
     if $ASAN -o "$OUT/stress_asan" tests/stress_test.c -lm 2>/dev/null; then
         run "stress under ASan + UBSan (no access out of bounds)" "$OUT/stress_asan" "${STRESS_ASAN_FRAMES:-15000}" 7
     else
@@ -308,24 +309,24 @@ run "update loader, SMK-37 Pro: app area 0x4000-0x9CFFF, protected ranges untouc
 
 fi
 
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
-run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
+run "TRACKS: six-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
 $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
 run "legacy project formats FUN1–FUN6, FUN7 migration, capture / apply, autosave" "$OUT/project_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
 mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
 mkdir -p build/fm6_demo
 run "FM6: algorithms, envelopes, retrigger, DC, clipping, macros, patch formats, voices, the bank, demos" "$OUT/fm6_test" build/fm6_demo
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/unison_level_test" tests/unison_level_test.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/unison_level_test" tests/unison_level_test.c -lm
 run "UNISON: both selectable engines spread their voices' phases (no stack over POLY)" "$OUT/unison_level_test"
 run "the editor protocol and the other inputs (USB / TRS MIDI, damaged flash) fuzzed under ASan + UBSan, and its reproducers" sh tests/editor_fuzz.sh "${EDFZ_N:-2000}" 1
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
+$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
 # the CPU budget: counted by the kernel on macOS; elsewhere under callgrind when valgrind is there (exact, ~45 s;
 # SKIP_CPU_VALGRIND=1 to time instead, which is only a rough check)
 if [ -z "$SKIP_CPU_VALGRIND" ] && command -v valgrind >/dev/null 2>&1; then export CPU_VALGRIND=1; fi
