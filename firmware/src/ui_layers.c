@@ -337,7 +337,7 @@ UI_SMALL static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             ui.step_held &= (uint16_t)~(1u << w);
             if (layer == LY_STEP)
                 step_up((uint32_t)w);
-            if (layer == LY_MIX && w == 12)
+            if (layer == LY_MIX && w == 2u * NTRK)
                 fill_held = 0;                              /* GLO + key 9 let go: the fill ends */
         }
         return;
@@ -431,13 +431,13 @@ UI_SMALL static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                 ui_say("SAVED ", b);
             }
 #if !BOARD_SMK37
-        } else if (w == 12) {
+        } else if (w == 2u * NTRK) {
             if (srec) ui_message("REC IS ON");
             else {
                 arrangement_enabled ^= 1u;
                 ui_message(arrangement_enabled ? "SONG MODE" : "LOOP MODE");
             }
-        } else if (w == 13) {
+        } else if (w == 2u * NTRK + 1u) {
             if (srec) {
                 fm1_irq_off();
                 srec_stop();
@@ -1003,13 +1003,13 @@ UI_SMALL static void layer_screen_draw(void)
             tl[NTRK + i].fg = so ? C_BLACK : TE_G3;
             tl[NTRK + i].top = TE_DIM[i];
         }
-        str_cpy(tl[12].lab, "fill", 8);
-        tl[12].bg = fill_now ? C_WHITE : TE_G1;
-        tl[12].fg = fill_now ? C_BLACK : TE_G4;
-        str_cpy(tl[13].lab, "bar", 8);
-        tl[13].bg = fill_bar_on ? C_WHITE : TE_G1;
-        tl[13].fg = fill_bar_on ? C_BLACK : TE_G4;
-        tl[13].top = fill_arm ? C_WHITE : 0;
+        str_cpy(tl[2u * NTRK].lab, "fill", 8);
+        tl[2u * NTRK].bg = fill_now ? C_WHITE : TE_G1;
+        tl[2u * NTRK].fg = fill_now ? C_BLACK : TE_G4;
+        str_cpy(tl[2u * NTRK + 1u].lab, "bar", 8);
+        tl[2u * NTRK + 1u].bg = fill_bar_on ? C_WHITE : TE_G1;
+        tl[2u * NTRK + 1u].fg = fill_bar_on ? C_BLACK : TE_G4;
+        tl[2u * NTRK + 1u].top = fill_arm ? C_WHITE : 0;
         str_cpy(tl[14].lab, "tap>", 8);
         tl[14].bg = C_BLACK;
         fmt_int(tl[15].lab, song.g[G_BPM]);
