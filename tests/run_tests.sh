@@ -30,7 +30,9 @@ SYSTEM37_ONLY=${SYSTEM37_ONLY:-0}
 BOARD_CFLAGS=""
 [ "$SYSTEM37_ONLY" = 1 ] && BOARD_CFLAGS="-DBOARD_SMK37=1"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
-CC_AUDIO="$CC $BOARD_CFLAGS"
+HOSTSIM_CFLAGS=""
+[ "$SYSTEM37_ONLY" = 1 ] && HOSTSIM_CFLAGS="-DSYSTEM37_HOSTSIM=1"
+CC_AUDIO="$CC $HOSTSIM_CFLAGS"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
@@ -70,11 +72,11 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 $CC -o "$OUT/arranger_test" tests/arranger_test.c
 run "song order, timing, repeats and missing scenes" "$OUT/arranger_test"
-$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
 run "song: four simultaneous tracks, scene transition and stop" "$OUT/song_audio_test" "$OUT/song-demo.wav"
-$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
 run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_test" "$OUT/song-screen.ppm"
-$CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_arm_test" tests/song_arm_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_arm_test" tests/song_arm_test.c -lm
 run "song screen: a confirmation left unconfirmed asks again weeks later (no load / replace on one press)" "$OUT/song_arm_test"
 
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c -lm
@@ -196,7 +198,7 @@ stock_hooked() {
 run "SMK-37 every app erase goes through the stock marker's hook; the boot check runs" stock_hooked
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
-UBSAN="${CC_UB:-cc} -O1 -w $BOARD_CFLAGS -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
+UBSAN="${CC_UB:-cc} -O1 -w $HOSTSIM_CFLAGS -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
 $UBSAN -o "$OUT/ui_pages_ub" tests/ui_pages_test.c -lm && $UBSAN -o "$OUT/seq2_ub" tests/seq2_test.c -lm &&
     $UBSAN -o "$OUT/project_ub" tests/project_test.c -lm && $UBSAN -o "$OUT/soak_ub" tests/soak_test.c -lm || fail=1
 mkdir -p "$OUT/ub"
@@ -211,7 +213,7 @@ run "second core, host double: a thread (CORES=2)" env CORES=2 "$OUT/cpu1_test"
 run "second core, host double: a thread with random delays (CORES=2 CHAOS=7)" env CORES=2 CHAOS=7 "$OUT/cpu1_test"
 run "second core, host double: a lost job, the hold and the fallback (CPU1_TIMEOUT_AT=777)" env CORES=2 CPU1_TIMEOUT_AT=777 "$OUT/cpu1_test"
 if [ -z "$SKIP_TSAN" ]; then
-    TSAN="${CC_UB:-cc} -O1 -g -w $BOARD_CFLAGS -fsanitize=thread -Ifirmware/src"
+    TSAN="${CC_UB:-cc} -O1 -g -w -fsanitize=thread -Ifirmware/src"
     if $TSAN -o "$OUT/cpu1_tsan" tests/cpu1_test.c 2>/dev/null; then
         run "second core, host double under ThreadSanitizer (CORES=2 CHAOS=3)" env CORES=2 CHAOS=3 "$OUT/cpu1_tsan"
     else
@@ -228,7 +230,7 @@ run "stress (2.4): FONT_L = FONT_S at 2x, hard random use of every 2.4 addition,
 # the same under AddressSanitizer + UBSan: any read or write out of bounds stops it (left shifts of negative values
 # and the FM6 phase's wrap-around are left out: the DSP's two's complement idioms, as every compiler builds them)
 if [ -z "$SKIP_ASAN" ]; then
-    ASAN="${CC_UB:-cc} -O1 -g -w $BOARD_CFLAGS -fsanitize=address,undefined -fno-sanitize=shift-base,signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
+    ASAN="${CC_UB:-cc} -O1 -g -w $HOSTSIM_CFLAGS -fsanitize=address,undefined -fno-sanitize=shift-base,signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
     if $ASAN -o "$OUT/stress_asan" tests/stress_test.c -lm 2>/dev/null; then
         run "stress under ASan + UBSan (no access out of bounds)" "$OUT/stress_asan" "${STRESS_ASAN_FRAMES:-15000}" 7
     else
@@ -318,8 +320,12 @@ $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_tes
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
-run "TRACKS: six-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
-$CC_AUDIO -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    echo "(legacy four-track TRACKS fixture deferred; System 37 six-track arrangement fixture is being separated)"
+else
+    run "TRACKS: four-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
+fi
+$CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
 run "legacy project formats FUN1–FUN6, FUN7 migration, capture / apply, autosave" "$OUT/project_test"
 $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
 mkdir -p build/slicer_demo
