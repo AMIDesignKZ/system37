@@ -8,8 +8,8 @@
  * (default 4, up to 8), DRUMS=1 adds GM drum hits, BENCH=1 prints the render time,
  * DIST=d, LEVEL=l, SENDS=c,d,r, SWEEP=1, NOTE=k, OCT=o, PSET=id:v,..., VSWEEP=1, PSWEEP=id:a:b,
  * PRESET=1 (the whole preset: sends, ARP, voice mode), STEPS=n,n,... (a pattern, 0 = rest; see below).
- * TRACKS=DIR: the 4-track test (tracks_demo below): a bass / pad / lead / drums pattern
- * with live recording into DIR (mix + solos), checks, and the cost against one track. */
+ * TRACKS=DIR: the board's synth-part count plus dedicated drums (tracks_demo below): bass / pad / lead /
+ * texture / keys / drums on System 37, live recording into DIR (mix + solos), checks and voice-budget cost. */
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -701,7 +701,7 @@ static int tracks_test(const char *dir)
     static const char *const SOLO[7] = {"tracks_demo.wav", "t1_bass.wav", "t2_pad.wav", "t3_lead.wav",
                                         "t4_texture.wav", "t5_keys.wav", "t6_drums.wav"};
     uint32_t e, pi, s, worst_e = 0, worst_p = 0, heavy[NENGINES] = {0}, bm = 0;
-    double worst = 0, best_e[NENGINES] = {0}, four, four_full;
+    double worst = 0, best_e[NENGINES] = {0};
     int fail = 0;
     for (s = 0; s < NPART + 2u; s++) {
         pid_t pid;
