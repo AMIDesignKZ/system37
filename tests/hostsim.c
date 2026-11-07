@@ -170,12 +170,17 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
     static const uint8_t ACIDF[16] = {1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1};
     static const uint8_t AM[4] = {57, 60, 64, 67}, FM[4] = {53, 57, 60, 64};
     static const uint8_t LEAD[12] = {76, 0, 0, 79, 0, 0, 81, 0, 79, 0, 76, 0};
+    static const uint8_t TEXTURE[16] = {64, 0, 67, 0, 71, 0, 67, 0, 62, 0, 66, 0, 69, 0, 66, 0};
+    static const uint8_t KEYS[16] = {60, 0, 0, 0, 64, 0, 0, 0, 67, 0, 0, 0, 71, 0, 0, 0};
     const uint32_t frames = 16u * FS, bar = 2u * FS;
     char path[512];
     FILE *w;
     uint32_t f, i, bmax = 0, clips = 0, fail = 0, clap_done = 0, lead_done = 0, keys_t = 0, keys_on = 0;
     uint32_t clap_age = 0, clap_hits = 0xFFFFu, clap_pass = 0, kills0;
     track_t *t1 = &trk[0], *t2 = &trk[1], *t3 = &trk[2], *td = TDRUM;
+#if NPART >= 5
+    track_t *t4 = &trk[3], *t5 = &trk[4];
+#endif
     snprintf(path, sizeof path, "%s/%s", dir, name);
     if (!(w = fopen(path, "wb"))) {
         fprintf(stderr, "tracks: cannot write %s\n", path);
@@ -199,6 +204,15 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
         uint8_t n = LEAD[i];
         put_step(t3, i, n ? 1u : 0u, &n, n ? ST_NOTE : ST_REST, i == 0u ? SF_ACCENT : 0u);
     }
+#if NPART >= 5
+    host_preset(t4, ENGI_ANALOG, 12);
+    host_preset(t5, ENGI_FM6, 3);
+    for (i = 0; i < 16u; i++) {
+        uint8_t a = TEXTURE[i], b = KEYS[i];
+        put_step(t4, i, a ? 1u : 0u, &a, a ? ST_NOTE : ST_REST, i == 0u ? SF_ACCENT : 0u);
+        put_step(t5, i, b ? 1u : 0u, &b, b ? ST_NOTE : ST_REST, 0);
+    }
+#endif
     for (i = 0; i < 16u; i++) {                    /* kick 4 on the floor, snare 4 / 12, hats on the 8ths */
         uint8_t n[4];
         uint32_t k = 0;
@@ -214,7 +228,7 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
         for (i = 0; i < NPART; i++)
             if (i + 1u != solo)
                 trk[i].p[P_LEVEL] = 0;
-        if (solo != 4u)
+        if (solo != NTRK)
             song.g[G_DRLVL] = 0;
     }
     kills0 = voice_kills;
@@ -224,7 +238,7 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
         int32_t o[2 * CTL];
         uint32_t barn = f / bar, period = div_samples(2), q;
         if (barn == 4u && !song.rec)
-            song.rec = 0x0Eu;                      /* bars 5..6: tracks 2, 3, 4 armed */
+            song.rec = (uint8_t)(((1u << NTRK) - 1u) & ~1u); /* bars 5..6: all tracks except the bass armed */
         if (barn == 6u)
             song.rec = 0;
         /* (a) a clap into the drums, late in step 3: lands on step 4, sounds now, step 4 does not repeat it */
@@ -390,7 +404,7 @@ static int steal_test(const char *dir)
         if (f == FS / 2u / CTL * CTL)
             trk_note_on(&trk[1], 74, 90);          /* 8: the budget is full */
         if (ms >= 1000u && ms % 500u == 0u && f % (FS / 2u) < CTL && ms < 3500u) {
-            p = ms / 500u % 2u ? 1u : 2u;          /* parts 2, 3 in turn: each takes a voice */
+            p = 1u + (ms / 500u - 2u) % (NPART - 1u); /* parts 2..NPART in turn: each takes a voice */
             trk_note_on(&trk[p], 76u + ms / 250u, 90);
         }
         mix_block(o, CTL);
@@ -684,11 +698,12 @@ static int trs_test(void)
 
 static int tracks_test(const char *dir)
 {
-    static const char *const SOLO[5] = {"tracks_demo.wav", "t1_bass.wav", "t2_pad.wav", "t3_lead.wav", "t4_drums.wav"};
+    static const char *const SOLO[7] = {"tracks_demo.wav", "t1_bass.wav", "t2_pad.wav", "t3_lead.wav",
+                                        "t4_texture.wav", "t5_keys.wav", "t6_drums.wav"};
     uint32_t e, pi, s, worst_e = 0, worst_p = 0, heavy[NENGINES] = {0}, bm = 0;
     double worst = 0, best_e[NENGINES] = {0}, four, four_full;
     int fail = 0;
-    for (s = 0; s < 5u; s++) {
+    for (s = 0; s < NPART + 2u; s++) {
         pid_t pid;
         fflush(stdout);
         pid = fork();
@@ -743,7 +758,10 @@ static int tracks_test(const char *dir)
         if (!WIFEXITED(st) || WEXITSTATUS(st))
             fail++;
     }
-    printf("tracks: WAVs in %s: %s (mix), %s, %s, %s, %s, steal.wav, engine_switch.wav\n", dir, SOLO[0], SOLO[1], SOLO[2], SOLO[3], SOLO[4]);
+    printf("tracks: WAVs in %s: %s (mix)", dir, SOLO[0]);
+    for (s = 1; s < NPART + 2u; s++)
+        printf(", %s", SOLO[s]);
+    printf(", steal.wav, engine_switch.wav\n");
     /* one part: every preset with 8 held notes (the engine's cap: VOICE 4) + drums; the worst one */
     for (e = 0; e < NENGINES; e++)
         for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
@@ -762,29 +780,32 @@ static int tracks_test(const char *dir)
     printf("tracks: one part, 8 notes held + drums (host -O2, ns per sample, heaviest preset per engine):");
     for (e = 0; e < NENGINES; e++)
         printf(" %s %s %.1f%s", ENGINES[e]->name, ENGINES[e]->presets[heavy[e]].name, best_e[e], e + 1u < NENGINES ? "," : "\n");
-    {   /* Analog + FM6 + Analog at once: 3 + 3 + 2 notes = the shared budget of 8 */
-        uint8_t parts[NPART][3] = {{ENGI_ANALOG, (uint8_t)heavy[ENGI_ANALOG], 3},
-                                   {ENGI_FM6, (uint8_t)heavy[ENGI_FM6], 3},
-                                   {ENGI_ANALOG, (uint8_t)heavy[ENGI_ANALOG], 2}};
-        uint8_t full[NPART][3] = {{ENGI_ANALOG, (uint8_t)heavy[ENGI_ANALOG], 8},
-                                  {ENGI_FM6, (uint8_t)heavy[ENGI_FM6], 8},
-                                  {ENGI_ANALOG, (uint8_t)heavy[ENGI_ANALOG], 4}};
-        uint8_t vv[NPART][3] = {{ENGI_FM6, (uint8_t)heavy[ENGI_FM6], 4},
-                                {ENGI_FM6, (uint8_t)heavy[ENGI_FM6], 4}, {0, 0, 0}};
-        uint8_t idle[NPART][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-        uint32_t bm2 = 0, bm3 = 0;
-        double two_voice, none;
-        four = tracks_cost(parts, &bm);
-        four_full = tracks_cost(full, &bm2);
+    {   /* All five synth parts plus drums: 2 + 2 + 2 + 1 + 1 notes = the shared budget of eight. */
+        uint8_t parts[NPART][3] = {{0}}, full[NPART][3] = {{0}};
+        uint8_t vv[NPART][3] = {{0}}, idle[NPART][3] = {{0}};
+        uint32_t bm2 = 0, bm3 = 0, p;
+        double two_voice, none, mix_cost, full_cost;
+        for (p = 0; p < NPART; p++) {
+            uint32_t e = (p & 1u) ? ENGI_ANALOG : ENGI_FM6;
+            parts[p][0] = full[p][0] = (uint8_t)e;
+            parts[p][1] = full[p][1] = (uint8_t)heavy[e];
+            parts[p][2] = (uint8_t)(NPART == 5u ? (p < 3u ? 2u : 1u) : (p < 2u ? 3u : 2u));
+            full[p][2] = 8;
+        }
+        vv[0][0] = vv[1][0] = ENGI_FM6;
+        vv[0][1] = vv[1][1] = (uint8_t)heavy[ENGI_FM6];
+        vv[0][2] = vv[1][2] = 4;
+        mix_cost = tracks_cost(parts, &bm);
+        full_cost = tracks_cost(full, &bm2);
         two_voice = tracks_cost(vv, &bm3);
         none = tracks_cost(idle, 0);
         printf("tracks: worst single part: %s %s %.1f ns\n", ENGINES[worst_e]->name, ENGINES[worst_e]->presets[worst_p].name, worst);
-        printf("tracks: Analog + FM6 + Analog + drums, 3 + 3 + 2 notes: %.1f ns (%.2f x the worst single part), "
-               "%u voices\n", four, four / worst, bm);
-        printf("tracks: the same, 8 + 8 + 4 notes asked for (budget keeps %u): %.1f ns (%.2f x)\n", bm2, four_full,
-               four_full / worst);
+        printf("tracks: five synth parts + drums, shared 8-note mix: %.1f ns (%.2f x the worst single part), "
+               "%u voices\n", mix_cost, mix_cost / worst, bm);
+        printf("tracks: all five parts ask for 8 notes (budget keeps %u): %.1f ns (%.2f x)\n", bm2, full_cost,
+               full_cost / worst);
         printf("tracks: two VOICE parts, 4 + 4 voices (the heaviest 8 the budget allows): %.1f ns (%.2f x); "
-               "no notes (drums, buses, 3 idle parts): %.1f ns\n", two_voice, two_voice / worst, none);
+               "no notes (drums, buses, five idle parts): %.1f ns\n", two_voice, two_voice / worst, none);
         if (bm > NVOICE || bm2 > NVOICE || bm3 > NVOICE)
             fail++;
     }
