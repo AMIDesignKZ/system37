@@ -108,8 +108,8 @@ int main(void)
     st_erase(0xBA000u);
     st_erase(0x9D000u);
     check("erases outside USRFLASH (the store) leave the marker alone", tag_erases == 0 && tagged());
-    check("the guard: no page write into the marker sector, no erase past it",
-          st_prog(FL_STOCKTAG_OFF, "x", 1) == -8 && st_erase(0xEB000u) == -8 && st_erase(0xC1000u) == -8);
+    check("the guard: no page write into the marker sector, no erase into protected stock resources",
+          st_prog(FL_STOCKTAG_OFF, "x", 1) == -8 && st_erase(0xF4000u) == -8 && st_erase(0xC1000u) == -8);
     printf("%s\n", bad ? "SMK STOCK TEST FAILED" : "smk stock test passed");
     return bad != 0;
 }
