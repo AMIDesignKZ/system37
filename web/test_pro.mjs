@@ -56,12 +56,12 @@ for (model, seed), path in zip(${JSON.stringify(MODELS.map(([m, , s]) => [m, s])
 const site = join(tmp, "site");
 const made = execFileSync(PYTHON, [join(HERE, "make_site.py"), "--pro", "2.8", site, ...files], { encoding: "utf8" });
 const inst = join(site, "webapp/installer/index.html");
-ok(existsSync(inst) && /sloop-pro-2\.8\.fwsc.*sloop-pro-elite-2\.8\.fwsc.*sloop-pro-mke-2\.8\.fwsc/s.test(made)
+ok(existsSync(inst) && /system37-2\.8\.fwsc.*system37-elite-2\.8\.fwsc.*system37-mke-2\.8\.fwsc/s.test(made)
    && existsSync(join(site, "webapp/editor/index.html")) && existsSync(join(site, "webapp/sw.js")),
    "make_site --pro: installer, editor, app files, one package per model");
 ok(readFileSync(join(site, "webapp/editor/index.html"), "utf8").includes("<title>SLOOP Pro Editor</title>")
    && JSON.parse(readFileSync(join(site, "webapp/sloop.webmanifest"), "utf8")).name === "SLOOP Pro"
-   && /sloop-pro-mke-2\.8\.fwsc/.test(readFileSync(join(site, "webapp/sw.js"), "utf8")),
+   && /system37-mke-2\.8\.fwsc/.test(readFileSync(join(site, "webapp/sw.js"), "utf8")),
    "make_site --pro: SLOOP Pro Editor, the app's name, every package kept offline");
 {
   let refused = false;
@@ -71,7 +71,7 @@ ok(readFileSync(join(site, "webapp/editor/index.html"), "utf8").includes("<title
 }
 const page = readFileSync(inst, "utf8");
 const IMAGES = Object.fromEntries(MODELS.map(([m, sfx]) => {
-  const raw = readFileSync(join(site, `firmware/sloop-pro${sfx}-2.8.fwsc`));
+  const raw = readFileSync(join(site, `firmware/system37${sfx}-2.8.fwsc`));
   return [m, raw];
 }));
 
