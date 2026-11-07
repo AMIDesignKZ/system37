@@ -551,9 +551,15 @@ async function editorV9() {
     const arr = (name) => (new RegExp(`${name}\\[[^\\]]*\\](?:\\[[^\\]]*\\])?\\s*=\\s*\\{([\\s\\S]*?)\\};`).exec(h) || [])[1] || "";
     const nums = (x) => (x.match(/\d+/g) || []).map(Number);
     const fac = nums(arr("FM6_FACTORY"));
-    ok(js(nums(arr("FM6_INIT"))) === js(Array.from(F.INIT_PK)) && fac.length === F.FACTORY_PK.length * 128
+    const nf = Number((/#define FM6_NFACTORY\s+(\d+)/.exec(h) || [])[1] || 0);
+    const nativeNames = (/#define FM6_NATIVE_NAMES \\\n([\s\S]*?)\n#define FM6_DX7_NAMES/.exec(h) || [])[1] || "";
+    const dx7Names = (/#define FM6_DX7_NAMES \\\n([\s\S]*?)\nstatic const uint8_t FM6_INIT/.exec(h) || [])[1] || "";
+    const nativeCount = (nativeNames.match(/"/g) || []).length / 2;
+    const dx7Count = (dx7Names.match(/"/g) || []).length / 2;
+    ok(js(nums(arr("FM6_INIT"))) === js(Array.from(F.INIT_PK)) && nf === 72 && fac.length === nf * 128
+      && nativeCount === 8 && dx7Count === 64 && F.FACTORY_PK.length === nativeCount
       && F.FACTORY_PK.every((pk, i) => js(Array.from(pk)) === js(fac.slice(i * 128, i * 128 + 128))),
-    "v9: the editor's init and factory patches == felucca_fm6.h");
+    "v9: editor native presets match the firmware; firmware embeds 64 DX7 ROM voices (two banks)");
   }
   /* pack / unpack: every voice survives, every value into its range */
   let rt = true;
@@ -627,7 +633,7 @@ async function editorBackup() {
   const info = E.parse[C.INFO](await rq(E.req.info()));
   ok(info.proto >= 6, "backup: INFO protocol v6 or later");
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8");
-  ok(/ED_BK_IDS\[\] = \{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 32, 33, 34, 35\}/.test(ec) && E.backupObjects && [10, 11].every((id) => ec.includes(`id == ${id}u`)),
+  ok(/ED_BK_IDS\[\] = \{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 32, 33, 34, 35\}/.test(ec) && E.backupObjects && [10, 11].every((id) => ec.includes(`id == ${id}u`)),
     "backup: the object ids == editor.c ED_BK_IDS (35: USR4, 9: SYN kits, 10: MIDI LEARN, 11: theme)");
   await rq(E.req.upStore(3, "BACKUP ME"));
   await rq(E.req.project(1, 2), { timeout: 4000, retries: 0 });
