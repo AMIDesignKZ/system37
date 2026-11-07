@@ -9,7 +9,7 @@
 #include <stdint.h>
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPOLY 8
-#if defined(BOARD_SMK37) && BOARD_SMK37
+#if (defined(BOARD_SMK37) && BOARD_SMK37) || defined(SYSTEM37_HOSTSIM)
 #define NPART 5                  /* System 37: synth tracks 1..5 */
 #define NTRK 6                   /* + dedicated drum track 6 */
 #define TRK_DRUM 5
