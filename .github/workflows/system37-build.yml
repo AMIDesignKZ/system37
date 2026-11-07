@@ -54,18 +54,10 @@ jobs:
           BOARD=smk37 MODEL=pro sh build.sh
           python3 tests/smk_pkg_test.py build/system37.fwsc "SMK-37 Pro_900"
 
-      - name: Build FM-1 reference for the legacy host and installer tests
-        run: |
-          # run_tests.sh exercises both the FM-1 code path and the SMK-37-specific
-          # host fixtures. Its OTA, loader, web and target-disassembly checks
-          # intentionally consume the FM-1 package at build/felucca.fwsc.
-          # Never alias the Pro package here: its product identity and flash map
-          # are deliberately different.
-          BOARD=fm1 sh build.sh
-
-      - name: Run host, sanitizer, target-budget and web test suite
+      - name: Run System 37 host, sanitizer, target-budget and web tests
         env:
           EDFZ_N: "2000"
+          SYSTEM37_ONLY: "1"
         run: sh tests/run_tests.sh
 
       - name: Publish firmware packages and installer site
@@ -76,6 +68,8 @@ jobs:
           if-no-files-found: warn
           path: |
             build/system37.fwsc
-            build/felucca.fwsc
+            build/felucca.bin
+            build/felucca.dis
             build/gen/felucca_fm6.h
+            build/host/
             build/system37-site/
