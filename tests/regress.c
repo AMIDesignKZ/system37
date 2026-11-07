@@ -325,9 +325,21 @@ static void job_song(const job_t *j)
 /* this thread's CPU time: unlike the wall clock it does not count the time the host gave to others */
 static uint64_t cpu_ns_now(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
+    static clockid_t clock_id = CLOCK_THREAD_CPUTIME_ID;
+    struct timespec ts = {0, 0};
+    if (clock_gettime(clock_id, &ts) != 0) {
+#ifdef CLOCK_PROCESS_CPUTIME_ID
+        clock_id = CLOCK_PROCESS_CPUTIME_ID;
+        if (clock_gettime(clock_id, &ts) != 0) {
+#endif
+            clock_id = CLOCK_MONOTONIC;
+            if (clock_gettime(clock_id, &ts) != 0)
+                return 0;
+#ifdef CLOCK_PROCESS_CPUTIME_ID
+        }
+#endif
+    }
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 static uint64_t instr_now(void)
 {

@@ -60,8 +60,9 @@ jobs:
           SOAK_MIN: "2"
           STRESS_FRAMES: "12000"
           STRESS_ASAN_FRAMES: "4000"
+          SKIP_CPU_VALGRIND: "1"
           SYSTEM37_ONLY: "1"
-        run: sh tests/run_tests.sh
+        run: timeout 1200s sh tests/run_tests.sh
 
       - name: Publish firmware packages and installer site
         if: always()

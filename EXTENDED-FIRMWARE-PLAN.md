@@ -424,3 +424,5 @@ The first SMK-37 Pro target build in this isolated pipeline succeeded. The measu
 - Web protocol tests now validate the System37 six-track INFO/TRACK/MIX responses and the six CSS track-accent tokens. The original four-colour theme defaults in `TE_COL_DEF` remain unchanged.
 - Aligned the firmware visualiser's six track colours with the editor palette: blue, green, yellow, purple, cyan and orange.
 - Bounded the CI-only soak and stress workloads (2-minute soak, 12,000 stress frames, 4,000 ASan frames). The longer local defaults remain available; this keeps CI validation bounded without removing the stress tests.
+
+- The CI test stage now has a 20-minute shell timeout and skips optional Callgrind instrumentation while retaining CPU-time measurements. The regression timer checks the thread CPU clock and falls back to process CPU time, then monotonic time if the preferred clock is unavailable.
