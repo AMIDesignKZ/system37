@@ -49,10 +49,11 @@ int main(void)
           !LDR_RANGE_OK(0x3000u, 0x2000u) && FL_PROTECTED(0xBF000u, 0x2000u) && FL_PROTECTED(0x3F00u, 0x200u));
     check("wrapping ranges refused (off + n past 4 GiB)",
           !FL_GUARD(0xBB000u, 0xFFFFF000u) && !LDR_RANGE_OK(0x9D000u, 0xFFFFFF00u) && FL_PROTECTED(0xBB000u, 0xFFFFF000u));
-    check("app windows: FL_DATA 0x9D000-0xBAFFF, FL_OTA 0xBB000-0xBFFFF, FL_SMP 0xC2000-0xE9FFF, the stock marker sector",
+    check("app and catalogue windows: data, OTA, samples, catalogue free/tail, stock marker",
           FL_GUARD(0x9D000u, 0x1000u) && FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
           FL_GUARD(0xC2000u, 0x1000u) && FL_GUARD(0xE9000u, 0x1000u) && FL_GUARD(0xEA000u, 0x1000u) &&
-          !FL_GUARD(0xEB000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
+          FL_GUARD(0xEB000u, 0x1000u) && FL_GUARD(0xF3000u, 0x1000u) && FL_GUARD(0xFE000u, 0x1000u) &&
+          !FL_GUARD(0xF4000u, 0x1000u) && !FL_GUARD(0xFF000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
           allowed == (0xC0000u - 0x9D000u + 0xEA000u - 0xC2000u +
                       FL_CAT_FREE_HI - FL_CAT_FREE_LO + FL_CAT_TAIL_HI - FL_CAT_TAIL_LO) / 0x1000u + 1u);
     check("the stock marker sector 0xEA000: the whole sector only (its erase), never a page or a range into it",
