@@ -524,17 +524,16 @@ static void midi_pkt(uint32_t st, uint32_t d1, uint32_t d2)   /* as usb.c: the q
     midi_in_q[mi_w++ % MQ] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
 }
 
-/* the shared budget: all five System 37 POLY synth parts (ANALOG and FM6) play random notes on and off
- * for 6 s; after every block: at most 8 part voices sounding, no part exceeds its four-voice cap, and
- * no stolen voice remains after KILL_BLOCKS; then all off: every voice free */
+/* Shared budget: five FM6 POLY parts, each with an engine cap of six, compete for eight voices.
+ * After every block, no more than eight voices may sound, no part may exceed its engine cap, every
+ * stolen voice must finish its KILL_BLOCKS fade, and all voices must release after note-offs. */
 static int chk_budget(char *msg, uint32_t n)
 {
-    static const uint8_t E[2] = {ENGI_ANALOG, ENGI_FM6};
     uint8_t held[NPART][128] = {{0}};
-    uint32_t p, k, worst = 0, vworst = 0, fading = 0, kills0 = voice_kills;
+    uint32_t p, k, worst = 0, vworst = 0, fading = 0, cap_bad = 0, kills0 = voice_kills;
     host_tracks_init();
     for (p = 0; p < NPART; p++) {
-        host_preset(&trk[p], E[p % 2u], 1);
+        host_preset(&trk[p], ENGI_FM6, 0);
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_AMODE] = 0;
         trk[p].p[P_SUS] = 100;
@@ -544,13 +543,8 @@ static int chk_budget(char *msg, uint32_t n)
         if (k % 4u == 0u) {
             uint32_t note = 36u + rnd(48);
             p = rnd(NPART);
-            if (held[p][note]) {
-                trk_note_off(&trk[p], note);
-                held[p][note] = 0;
-            } else {
-                trk_note_on(&trk[p], note, 60u + rnd(60));
-                held[p][note] = 1;
-            }
+            if (held[p][note]) { trk_note_off(&trk[p], note); held[p][note] = 0; }
+            else { trk_note_on(&trk[p], note, 60u + rnd(60)); held[p][note] = 1; }
         }
         blk();
         for (p = 0; p < NPART; p++) {
@@ -558,30 +552,28 @@ static int chk_budget(char *msg, uint32_t n)
             for (i = 0; i < NVOICE; i++) {
                 static uint8_t fade_blocks[NPART][NVOICE];
                 uint32_t f4 = trk[p].v[i].active && trk[p].v[i].stage == 4u;
-                a += trk[p].v[i].active && !f4;          /* sounding (a stolen voice fades out over KILL_BLOCKS) */
+                a += trk[p].v[i].active && !f4;
                 pv += trk[p].v[i].active && !f4;
                 fade_blocks[p][i] = (uint8_t)(f4 ? fade_blocks[p][i] + 1u : 0u);
                 fading += fade_blocks[p][i] >= KILL_BLOCKS;
             }
             vworst = pv > vworst ? pv : vworst;
+            if (pv > trk_nvoice(&trk[p])) cap_bad++;
         }
         worst = a > worst ? a : worst;
     }
     for (p = 0; p < NPART; p++)
         for (k = 0; k < 128u; k++)
-            if (held[p][k])
-                trk_note_off(&trk[p], k);
+            if (held[p][k]) trk_note_off(&trk[p], k);
     rel_at = fpos;
     finish();
-    snprintf(msg, n, "5 POLY parts, random notes: at most %u voices active (budget %u), any part at most %u (cap 4), "
-             "%u voices taken, %u still fading after their KILL_BLOCKS, all free %.2f s after the note-offs",
+    snprintf(msg, n, "five FM6 POLY parts: at most %u voices (shared budget %u), per-part max %u (engine cap 6), "
+             "%u steals, %u overlong fades, all free %.2f s after note-offs",
              worst, NVOICE, vworst, voice_kills - kills0, fading, R.free_s);
-    return worst <= NVOICE && vworst <= 4u && !fading && R.free_s >= 0 && voice_kills > kills0;
+    return worst <= NVOICE && !cap_bad && !fading && R.free_s >= 0 && voice_kills > kills0;
 }
 
-/* a stolen voice fades: plain sines (filter open, no sends) on all five parts; part 1 holds 7 notes, part 2 one,
- * then parts 2–5 take voices in turn. The largest sample step in the 2 blocks of each take must stay
- * within 1.5 x the largest one in the 0.25 s before it (a hard cut is several times larger) */
+/* A stolen FM6 voice fades without a discontinuity. */
 static int chk_steal_fade(char *msg, uint32_t n)
 {
     static const uint8_t N1[7] = {48, 52, 55, 59, 62, 65, 69};
@@ -591,22 +583,17 @@ static int chk_steal_fade(char *msg, uint32_t n)
     double worst = 0;
     int32_t wat = 0, wcalm = 0;
     host_tracks_init();
-    for (p = 0; p < NPART; p++)
-        xfade_sine(&trk[p]);
+    for (p = 0; p < NPART; p++) host_fm6_sine(&trk[p]);
     for (f = 0; f < frames; f += CTL) {
         uint32_t ms = f * 1000u / FS, k0 = voice_kills;
         if (f == 0)
-            for (i = 0; i < 7u; i++)
-                trk_note_on(&trk[0], N1[i], 90);
-        if (f == at(0.5))
-            trk_note_on(&trk[1], 74, 90);
+            for (i = 0; i < 7u; i++) trk_note_on(&trk[0], N1[i], 90);
+        if (f == at(0.5)) trk_note_on(&trk[1], 74, 90);
         if (ms >= 1000u && f % (FS / 2u) < CTL && ms < 3500u)
             trk_note_on(&trk[1u + (ms / 500u) % (NPART - 1u)], 76u + ms / 250u, 90);
         blk();
-        if (voice_kills != k0 && nev < 8u)
-            ev[nev++] = f;
-        for (i = 0; i < CTL; i++)
-            L[f + i] = last_out[2 * i];
+        if (voice_kills != k0 && nev < 8u) ev[nev++] = f;
+        for (i = 0; i < CTL; i++) L[f + i] = last_out[2 * i];
     }
     for (k = 0; k < nev; k++) {
         int32_t calm = 1, a = 0;
@@ -614,40 +601,33 @@ static int chk_steal_fade(char *msg, uint32_t n)
             calm = abs(L[i] - L[i - 1]) > calm ? abs(L[i] - L[i - 1]) : calm;
         for (i = ev[k]; i < ev[k] + 2u * CTL; i++)
             a = abs(L[i] - L[i - 1]) > a ? abs(L[i] - L[i - 1]) : a;
-        if ((double)a / calm > worst) {
-            worst = (double)a / calm;
-            wat = a;
-            wcalm = calm;
-        }
+        if ((double)a / calm > worst) { worst = (double)a / calm; wat = a; wcalm = calm; }
         bad += a * 2 > calm * 3;
     }
     free(L);
-    snprintf(msg, n, "%u takes; largest sample step at a take %d vs %d before it (%.2f x, limit 1.50 x)", nev, wat,
-             wcalm, worst);
+    snprintf(msg, n, "%u takes; largest sample step at a take %d vs %d before it (%.2f x, limit 1.50 x)", nev, wat, wcalm, worst);
     return nev >= 4u && !bad;
 }
 
-/* MONO / LEGATO / UNISON keep their note: part 1 holds note 40 in mode m while all other synth parts (POLY)
- * flood the shared budget with new notes for 2 s; part 1's voice 0 must sound note 40, gate on, every block */
+/* MONO / LEGATO / UNISON must keep the protected lead note while the other four parts fill the budget. */
 static int chk_keep(char *msg, uint32_t n, uint32_t mode)
 {
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     uint32_t k, lost = 0, kills0 = voice_kills;
     host_tracks_init();
-    host_preset(&trk[0], 0, 0);
+    host_preset(&trk[0], ENGI_FM6, 0);
     trk[0].p[P_VOICE] = (int16_t)mode;
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
     for (k = 1; k < NPART; k++) {
-        host_preset(&trk[k], 1, 1);
+        host_preset(&trk[k], ENGI_FM6, 0);
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_AMODE] = 0;
         trk[k].p[P_SUS] = 100;
     }
     trk_note_on(&trk[0], 40, 100);
     for (k = 0; k < 2u * FS / CTL; k++) {
-        if (k % 3u == 0u)
-            trk_note_on(&trk[1u + (k / 3u) % (NPART - 1u)], 50u + k / 3u % 40u, 100);
+        if (k % 3u == 0u) trk_note_on(&trk[1u + (k / 3u) % (NPART - 1u)], 50u + k / 3u % 40u, 100);
         blk();
         {
             const voice_t *v = &trk[0].v[0];
@@ -662,42 +642,34 @@ static int chk_keep_mono(char *m, uint32_t n) { return chk_keep(m, n, V_MONO); }
 static int chk_keep_legato(char *m, uint32_t n) { return chk_keep(m, n, V_LEGATO); }
 static int chk_keep_unison(char *m, uint32_t n) { return chk_keep(m, n, V_UNISON); }
 
-/* the synth part's cap: 8 keys in POLY and in UNISON (alone: the budget does not limit it) */
+/* FM6's per-part cap is six voices in both POLY and UNISON. */
 static int chk_voice_cap(char *msg, uint32_t n)
 {
     uint32_t mode, k, i, most[2] = {0, 0};
     for (mode = 0; mode < 2u; mode++) {
         track_t *t = &trk[0];
         host_tracks_init();
-        host_preset(t, ENGI_ANALOG, 0);
+        host_preset(t, ENGI_FM6, 0);
         t->p[P_VOICE] = mode ? V_UNISON : V_POLY;
         t->p[P_AMODE] = 0;
-        for (k = 0; k < 8u; k++)
-            trk_note_on(t, 60u + 2u * k, 100);
+        for (k = 0; k < 8u; k++) trk_note_on(t, 60u + 2u * k, 100);
         for (k = 0; k < FS / 2u / CTL; k++) {
             uint32_t a = 0;
             blk();
-            for (i = 0; i < NVOICE; i++)
-                a += t->v[i].active;
+            for (i = 0; i < NVOICE; i++) a += t->v[i].active;
             most[mode] = a > most[mode] ? a : most[mode];
         }
-        for (k = 0; k < 8u; k++)
-            trk_note_off(t, 60u + 2u * k);
-        for (k = 0; k < 4u * FS / CTL && !parts_free(); k++)
-            blk();
-        if (!parts_free())
-            most[mode] = 99;
+        for (k = 0; k < 8u; k++) trk_note_off(t, 60u + 2u * k);
+        for (k = 0; k < 4u * FS / CTL && !parts_free(); k++) blk();
+        if (!parts_free()) most[mode] = 99;
     }
-    snprintf(msg, n, "synth part, 8 keys: at most %u voices in POLY, %u in UNISON (cap 4); freed after release",
+    snprintf(msg, n, "FM6 part, 8 keys: at most %u voices in POLY, %u in UNISON (cap 6); freed after release",
              most[0], most[1]);
-    return most[0] == 4u && most[1] == 4u;
+    return most[0] == 6u && most[1] == 6u;
 }
 
-/* no hanging notes: 6 s of random MIDI note-ons / offs on channels 1, 2, 3 (the parts), 10 (drums), 5 and
- * 16 (the selected track), and keys, while the selected track changes; the parts in random voice modes,
- * some with ARP, SUS 127 (a hanging note keeps sounding). A channel's note-off goes to the same channel
- * as its note-on. Then every held note off: no gate may stay on, no ARP may still hold a key, every voice
- * must be free (also the same note held on two "selected track" channels across a selection change). */
+/* MIDI routing/note-off regression follows the System37 channel map. */
+
 static int chk_hang(char *msg, uint32_t n)
 {
 #if NPART >= 5

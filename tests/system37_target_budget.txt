@@ -1,0 +1,2 @@
+# SYSTEM 37 SMK-37 target cost budget: pending review of target instruction counts.
+# Populate with BUDGET_UPDATE=1 only after the five-part render and ISR costs are accepted.

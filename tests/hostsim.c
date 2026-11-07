@@ -367,11 +367,22 @@ static double tracks_cost(const uint8_t parts[NPART][3], uint32_t *busy_max)
     return r[0];
 }
 
-/* stealing across parts must not click: three parts of plain sines (smooth: the largest sample
- * step is set by the pitches), 7 + 1 notes fill the budget, then notes on parts 2 and 3 take held
- * voices of part 1 (and part 2). Each taken voice fades over one block. Compares the largest sample
- * step around each take with the largest one in the 0.25 s before it; a hard cut would be several
- * times larger. Writes DIR/steal.wav. */
+/* System 37 shared-voice stealing: five FM6 INIT voices (a clean sine-like reference), 7 + 1 notes
+ * fill the shared budget, then new notes on parts 2..5 take held voices. Each taken voice fades over
+ * KILL_BLOCKS. Compare sample steps around each take with the 0.25 s before it. Writes DIR/steal.wav. */
+static void host_fm6_sine(track_t *t)
+{
+    uint8_t patch[FP_SIZE + 1u];
+    uint32_t part = (uint32_t)(t - trk);
+    host_preset(t, ENGI_FM6, 0);
+    fm6_unpack(FM6_INIT, patch);
+    fm6_set_patch(part, patch);
+    t->p[P_VOICE] = V_POLY;
+    t->p[P_SUS] = 127;
+    t->p[P_LEVEL] = 90;
+    t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = t->p[P_DIST] = 0;
+}
+
 static int steal_test(const char *dir)
 {
     static const uint8_t N1[7] = {48, 52, 55, 59, 62, 65, 69};
@@ -387,15 +398,7 @@ static int steal_test(const char *dir)
     host_tracks_init();
     for (p = 0; p < NPART; p++) {
         track_t *t = &trk[p];
-        host_preset(t, ENGI_ANALOG, 21);           /* SINE PAD, as a plain held sine: */
-        t->p[P_E4] = 127;                          /* filter open, no resonance, no drive */
-        t->p[P_E5] = t->p[P_E6] = 0;
-        t->p[P_ED_FLT] = 0;
-        t->p[P_ATK] = 40;                          /* slow attack, full sustain, no sends */
-        t->p[P_SUS] = 127;
-        t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
-        t->p[P_VOICE] = V_POLY;
-        t->p[P_LEVEL] = 90;
+        host_fm6_sine(t);
     }
     kills0 = voice_kills;
     wav_hdr(w, frames);
@@ -646,23 +649,20 @@ static int rec_test(void)
     return fail;
 }
 
-/* TRS MIDI IN (midi_uart.c, untested on hardware): bytes through its parser into the same queue as
- * USB, routed by channel: 1..3 -> parts 1..3, 10 -> drums, others -> the selected track; running
- * status, note-on velocity 0 = note-off; a note-off on a "selected track" channel reaches the track
- * its note-on went to after another track was selected; recording into an armed track. */
+/* TRS MIDI IN: channels 1..5 address synth parts 1..5, channel 10 drums, and other channels
+ * (here channel 6) address the selected track. Note-offs remain bound to the track that received
+ * their note-ons even after selection changes; running status, realtime interleaving and recording. */
 static int trs_held(const track_t *t, uint32_t note)
 {
     uint32_t v;
     for (v = 0; v < NVOICE; v++)
-        if (t->v[v].active && t->v[v].gate && t->v[v].note == note)
-            return 1;
+        if (t->v[v].active && t->v[v].gate && t->v[v].note == note) return 1;
     return 0;
 }
 static void trs_bytes(const uint8_t *b, uint32_t n)
 {
     int32_t o[2 * CTL];
-    while (n--)
-        um_byte(*b++);
+    while (n--) um_byte(*b++);
     mix_block(o, CTL);
 }
 static int trs_test(void)
@@ -671,32 +671,43 @@ static int trs_test(void)
     int ok_parts, ok_drum, ok_sel, ok_off, ok_hang, ok_rec;
     host_tracks_init();
     for (i = 0; i < NPART; i++) {
-        host_preset(&trk[i], 0, 1);
+        host_preset(&trk[i], ENGI_ANALOG, 1);
         trk[i].p[P_VOICE] = V_POLY;
         trk[i].p[P_SUS] = 127;
     }
     song.sel = 1;
     d0 = drums.age;
-    trs_bytes((const uint8_t[]){0x90, 60, 100, 65, 0xF8, 100, 0x91, 62, 100, 0x92, 64, 100, 0x99, 36, 110, 0x94, 67, 90}, 18);
-    ok_parts = trs_held(&trk[0], 60) && trs_held(&trk[0], 65) && trs_held(&trk[1], 62) && trs_held(&trk[2], 64) && !trs_held(&trk[0], 62);
+    trs_bytes((const uint8_t[]){
+        0x90, 60, 100, 65, 0xF8, 100,
+        0x91, 62, 100, 0x92, 64, 100, 0x93, 66, 90,
+        0x94, 67, 90, 0x99, 36, 110, 0x95, 69, 90
+    }, 24);
+    ok_parts = trs_held(&trk[0], 60) && trs_held(&trk[0], 65) &&
+               trs_held(&trk[1], 62) && trs_held(&trk[2], 64) &&
+               trs_held(&trk[3], 66) && trs_held(&trk[4], 67);
     ok_drum = drums.age == d0 + 1u;
-    ok_sel = trs_held(&trk[1], 67) && !trs_held(&trk[0], 67);
-    trs_bytes((const uint8_t[]){0x90, 60, 0, 65, 0, 0x81, 62, 0, 0x82, 64, 64}, 11);   /* vel 0 = off, 0x8n */
-    ok_off = !trs_held(&trk[0], 60) && !trs_held(&trk[0], 65) && !trs_held(&trk[1], 62) && !trs_held(&trk[2], 64);
-    song.sel = 2;                                   /* another track selected while ch 5's note is down */
-    trs_bytes((const uint8_t[]){0x84, 67, 0}, 3);
-    ok_hang = !trs_held(&trk[1], 67);
-    song.rec = 1u << 2;                             /* track 3 armed, transport on: ch 3 records */
+    ok_sel = trs_held(&trk[1], 69) && !trs_held(&trk[0], 69);
+    trs_bytes((const uint8_t[]){
+        0x90, 60, 0, 65, 0, 0x81, 62, 0, 0x82, 64, 64,
+        0x83, 66, 0, 0x84, 67, 0
+    }, 17);
+    ok_off = !trs_held(&trk[0], 60) && !trs_held(&trk[0], 65) &&
+             !trs_held(&trk[1], 62) && !trs_held(&trk[2], 64) &&
+             !trs_held(&trk[3], 66) && !trs_held(&trk[4], 67);
+    song.sel = 2;
+    trs_bytes((const uint8_t[]){0x85, 69, 0}, 3);
+    ok_hang = !trs_held(&trk[1], 69);
+    song.rec = 1u << 2;
     transport_req = 1;
     trs_bytes((const uint8_t[]){0xF8}, 1);
     trs_bytes((const uint8_t[]){0x92, 72, 100}, 3);
     trs_bytes((const uint8_t[]){0x92, 72, 0}, 3);
-    ok_rec = trk[2].step[0].n == 1u && trk[2].step[0].note[0] == 72u && trk[2].step[0].time == ST_NOTE && trk[1].step[0].n == 0u;
-    printf("tracks: TRS MIDI IN: ch 1..3 -> parts %s, ch 10 -> drums %s, ch 5 -> the selected track %s; note-offs "
-           "(running status, vel 0) %s\n", ok_parts ? "ok" : "FAIL", ok_drum ? "ok" : "FAIL", ok_sel ? "ok" : "FAIL",
-           ok_off ? "ok" : "FAIL");
-    printf("tracks: TRS MIDI IN: note-off after another track was selected reaches the note's track %s; ch 3 records "
-           "into armed track 3 %s\n", ok_hang ? "ok" : "FAIL", ok_rec ? "ok" : "FAIL");
+    ok_rec = trk[2].step[0].n == 1u && trk[2].step[0].note[0] == 72u &&
+             trk[2].step[0].time == ST_NOTE && trk[1].step[0].n == 0u;
+    printf("tracks: TRS MIDI IN: channels 1..5 -> five synth parts %s, ch 10 -> drums %s, ch 6 -> selected track %s\n",
+           ok_parts ? "ok" : "FAIL", ok_drum ? "ok" : "FAIL", ok_sel ? "ok" : "FAIL");
+    printf("tracks: TRS MIDI IN: note-offs (including after selection changes) %s; ch 3 records into armed track 3 %s\n",
+           ok_off && ok_hang ? "ok" : "FAIL", ok_rec ? "ok" : "FAIL");
     return !ok_parts + !ok_drum + !ok_sel + !ok_off + !ok_hang + !ok_rec;
 }
 

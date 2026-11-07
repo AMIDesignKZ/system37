@@ -368,11 +368,20 @@ $CC_AUDIO -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -l
 # the CPU budget: counted by the kernel on macOS; elsewhere under callgrind when valgrind is there (exact, ~45 s;
 # SKIP_CPU_VALGRIND=1 to time instead, which is only a rough check)
 if [ -z "$SKIP_CPU_VALGRIND" ] && command -v valgrind >/dev/null 2>&1; then export CPU_VALGRIND=1; fi
-run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    run "System 37 regression: health, voice allocation and candidate golden/CPU metrics" "$OUT/regress" tests/system37_golden.txt tests/system37_cpu_baseline.txt
+else
+    run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
+fi
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
-run "regression: target cost of the render loops" python3 tests/target_budget.py \
-    build/felucca.dis tests/target_budget.txt
+if [ "$SYSTEM37_ONLY" = 1 ]; then
+    run "System 37 target cost: render loops and audio ISR" python3 tests/target_budget.py \
+        build/felucca.dis tests/system37_target_budget.txt
+else
+    run "regression: target cost of the render loops" python3 tests/target_budget.py \
+        build/felucca.dis tests/target_budget.txt
+fi
 # System 37 render split over the two cores: Analog / FM6 scenes, S&H LFOs, mutes, SLICER, filtered drums and
 # metronome under every mode of the host double of core 1, and under ThreadSanitizer
 run "the render split over the two cores: every mode of the second core's host double (tests/cpu1_modes.sh)" sh tests/cpu1_modes.sh

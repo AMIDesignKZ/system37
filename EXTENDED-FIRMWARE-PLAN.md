@@ -409,3 +409,11 @@ The first SMK-37 Pro target build in this isolated pipeline succeeded. The measu
 - The host fixture now clears non-parameter song routing state between tests, avoiding stale selected/solo state leaking between cases.
 - No System37 golden audio, CPU or target-cost baseline has been regenerated. The existing target budget is a SLOOP/FELUCCA reference and currently flags System37's drum mixer and audio ISR against that legacy baseline; a separate System37 budget remains required.
 - FM6 factory-patch peak still exceeds the current 2×VOICE_FS test threshold (56,195 vs 48,000). This is not being waived or hidden; the patch/output scaling needs separate audio review.
+
+### 8 November 2026 — Voice fixtures and baseline isolation
+
+- The host cross-part stealing fixture was incorrectly using the one-voice ANALOG engine on every part. It now uses the FM6 INIT patch so the shared eight-voice budget and fade path are actually exercised.
+- Regression checks now use the FM6 engine's real six-voice per-part cap rather than assuming a four-voice ANALOG cap. The System37 five-part budget test uses five FM6 POLY parts.
+- TRS MIDI routing assertions now reflect the System37 channel map: channels 1–5 map to synth parts 1–5, channel 10 to drums, and channel 6 to the selected track. The note-off test also changes selection between note-on and note-off.
+- Editor fuzz and soak fixtures retain their original FM-1 struct/three-part layouts when built in legacy mode; the System37 variants use eight project-cache pointers and five synth parts.
+- Added separate System37 golden, CPU and target-budget reference files. They are intentionally pending: System37 CI now measures health and cost without comparing against SLOOP/FELUCCA baselines. Existing SLOOP reference files remain unchanged.

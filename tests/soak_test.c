@@ -27,8 +27,13 @@ int main(int argc, char **argv)
     uint32_t b, i, k, held = 0, maxblock_ns = 0, events = 0, peak = 0;
     double total_ns = 0;
     struct timespec t0, t1;
+#if defined(SYSTEM37_HOSTSIM) && SYSTEM37_HOSTSIM
     static const uint8_t ENGINE[NPART] = {ENGI_ANALOG, ENGI_FM6, ENGI_FM6, ENGI_ANALOG, ENGI_FM6};
     static const uint8_t PRESET[NPART] = {4, 5, 0, 12, 3};
+#else
+    static const uint8_t ENGINE[NPART] = {ENGI_ANALOG, ENGI_FM6, ENGI_FM6};
+    static const uint8_t PRESET[NPART] = {4, 5, 0};
+#endif
     host_tracks_init();
     song.g[G_BPM] = 120;
     for (k = 0; k < NPART; k++)

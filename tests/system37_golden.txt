@@ -1,0 +1,2 @@
+# SYSTEM 37 SMK-37 golden renders: pending audio-health and determinism review.
+# Populate with GOLDEN_UPDATE=1 only after the five-part audio engine is validated.

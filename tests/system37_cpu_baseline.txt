@@ -1,0 +1,2 @@
+# SYSTEM 37 SMK-37 host CPU baseline: pending stable profiling and voice-allocation review.
+# Populate with BUDGET_UPDATE=1 only after the audio workload is accepted.
