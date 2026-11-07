@@ -417,3 +417,10 @@ The first SMK-37 Pro target build in this isolated pipeline succeeded. The measu
 - TRS MIDI routing assertions now reflect the System37 channel map: channels 1–5 map to synth parts 1–5, channel 10 to drums, and channel 6 to the selected track. The note-off test also changes selection between note-on and note-off.
 - Editor fuzz and soak fixtures retain their original FM-1 struct/three-part layouts when built in legacy mode; the System37 variants use eight project-cache pointers and five synth parts.
 - Added separate System37 golden, CPU and target-budget reference files. They are intentionally pending: System37 CI now measures health and cost without comparing against SLOOP/FELUCCA baselines. Existing SLOOP reference files remain unchanged.
+
+### 8 November 2026 — System37 web mock and six-colour UI alignment
+
+- The editor protocol already handles the device's reported track count dynamically; its built-in test mock was still fixed at four tracks. The mock now accepts a System37 profile with six tracks and the drum track at index 5, while retaining the four-track legacy profile.
+- Web protocol tests now validate the System37 six-track INFO/TRACK/MIX responses and the six CSS track-accent tokens. The original four-colour theme defaults in `TE_COL_DEF` remain unchanged.
+- Aligned the firmware visualiser's six track colours with the editor palette: blue, green, yellow, purple, cyan and orange.
+- Bounded the CI-only soak and stress workloads (2-minute soak, 12,000 stress frames, 4,000 ASan frames). The longer local defaults remain available; this keeps CI validation bounded without removing the stress tests.

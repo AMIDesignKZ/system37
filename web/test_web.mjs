@@ -39,7 +39,9 @@ const E = vm.runInNewContext(proto + `
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder, Blob, Response, DecompressionStream });
 
 async function editorMock() {
-  const m = E.makeMockDevice();
+  const system37 = process.env.SYSTEM37_ONLY === "1";
+  const expectedNtrk = system37 ? 6 : 4, drumIndex = expectedNtrk - 1;
+  const m = E.makeMockDevice({ system37 });
   const inp = [...m.access.inputs.values()][0], out = [...m.access.outputs.values()][0];
   const link = new E.Link((d) => out.send(d), { timeout: 300 });
   inp.onmidimessage = (e) => link.receive(e.data);
@@ -354,8 +356,9 @@ async function editorTracks() {
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const tr = E.parse[C.TRACK](await rq(E.req.track()));
-  ok(info.ntrk === 4 && tr.sel === 0 && tr.ntrk === 4 && tr.tracks[0].engine === 0 && tr.tracks[1].engine === 1
-    && tr.tracks[3].engine === info.nengines, "tracks: INFO NTRK, TRACK lists 4 (track 4 = drums, engine NENGINES)");
+  ok(info.ntrk === expectedNtrk && tr.sel === 0 && tr.ntrk === expectedNtrk && tr.tracks[0].engine === 0 && tr.tracks[1].engine === 1
+    && tr.tracks[drumIndex].engine === info.nengines,
+    `tracks: INFO NTRK, TRACK lists ${expectedNtrk} (last track = drums, engine NENGINES)`);
   /* the v1 commands follow the selected track */
   const d0 = E.parse[C.DUMP](await rq(E.req.dump()), info);
   const t1 = E.parse[C.TRACK](await rq(E.req.track(1)));
@@ -453,7 +456,7 @@ async function editorMixer() {
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const PAN = 39, MUTE = 40;
   const m0 = await E.mixer.read(rq, info, { pan: PAN });
-  ok(m0.ntrk === 4 && m0.tracks.length === 4 && m0.tracks[1].pan === -24 && m0.tracks[2].pan === 20 && m0.tracks[3].engine === info.nengines
+  ok(m0.ntrk === expectedNtrk && m0.tracks.length === expectedNtrk && m0.tracks[1].pan === -24 && m0.tracks[2].pan === 20 && m0.tracks[drumIndex].engine === info.nengines
     && m0.tracks.every((x) => Number.isInteger(x.level) && (x.mute === 0 || x.mute === 1)), "mixer: read = TRACK + pan of every track (TRACK_DUMP)");
   /* level / mute of a track that is not selected, and of the drum track (G_DRLVL) */
   const a = await E.mixer.setMix(rq, 2, 70, 1);
@@ -1527,11 +1530,11 @@ function editorTabs() {
   {   /* 2.4: the device's palette as tokens (:root), used through var(--...); outside them only #000 (text on a colour) */
     const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>")).replace(/:root\s*\{[^}]*\}/g, "");
     const hex = [...css.matchAll(/#[0-9a-f]{3,6}\b/gi)].map((m) => m[0].toLowerCase()).filter((c) => c !== "#000");
-    ok(!hex.length && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
-      "editor: the track colours of the device (gfx.c TE_COL_DEF), colours only as tokens" + (hex.length ? ` (${hex.join(" ")})` : ""));
+    ok(!hex.length && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #b060e8; --t5: #00bcd4; --t6: #ff621a;/.test(html),
+      "editor: six System37 track accents are CSS tokens" + (hex.length ? ` (${hex.join(" ")})` : ""));
     const te = readFileSync(join(HERE, "../firmware/src/gfx.c"), "utf8");   /* (2.7: TE_COL_DEF, a theme may change them) */
     ok(/TE_COL_DEF\[4\] = \{RGB\(40, 124, 255\), RGB\(30, 204, 112\), RGB\(255, 198, 24\), RGB\(255, 98, 26\)\}/.test(te),
-      "editor: ... the same four as the firmware's TE_COL");
+      "editor: legacy four-colour theme defaults remain stable in TE_COL_DEF");
     ok(/SLOOP-FONT\*\/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(html), "editor: the device's Terminus font inlined (tools/gen_webfont.py)");
   }
 }

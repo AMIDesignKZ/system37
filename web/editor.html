@@ -3312,8 +3312,8 @@ function makeMockDevice(opt = {}) {
   ];
   const P_E0 = TP.length, P_COUNT = P_E0 + 8, G_COUNT = GP.length, NSTEP = 64, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
-  const NTRK = 4, TRK_DRUM = 3;
+  /* Legacy mock: four tracks. System37 mock: five synth parts plus the drum track. */
+  const NTRK = opt.system37 ? 6 : 4, TRK_DRUM = NTRK - 1;
   const newTrack = (i) => ({ engine: 0, preset: 0, drum: i === TRK_DRUM, fm6: FM6.INIT_PK.slice(),   /* fm6: the FM6 patch (eng_fm6.c fm6_patch) */
     p: TP.map((d) => d.def).concat(i === TRK_DRUM ? [5, 0, 0, 0, 0, 0, 0, 0] : new Array(8).fill(0)),
     step: Array.from({ length: NSTEP }, () => ({ n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, lvl: 0, rat: 0 })),
@@ -3322,7 +3322,7 @@ function makeMockDevice(opt = {}) {
     fill: new Array(NSTEP / 4).fill(0) });           /* v8: fill conditions, 2 bits a step */
   const NLOCK = 24;
   const st = {
-    tracks: [0, 1, 2, 3].map(newTrack), sel: 0, rec: 0, solo: 0,
+    tracks: Array.from({ length: NTRK }, (_, i) => newTrack(i)), sel: 0, rec: 0, solo: 0,
     g: GP.map((d) => d.def),
     slots: [null, null, null, null],
     smp: [0, 1, 2, 3].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),   /* USR1..4 (2.4: USR4) */

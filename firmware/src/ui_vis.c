@@ -38,7 +38,7 @@ static struct {
 #if BOARD_SMK37
 static const uint16_t VIS_TRACK_COL[NTRK] = {
     RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24),
-    RGB(255, 98, 26), RGB(176, 104, 255), RGB(20, 196, 220)
+    RGB(176, 96, 232), RGB(0, 188, 212), RGB(255, 98, 26)
 };
 static uint16_t vis_track_col(uint32_t i) { return VIS_TRACK_COL[i % NTRK]; }
 #else

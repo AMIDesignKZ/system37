@@ -57,6 +57,9 @@ jobs:
       - name: Run System 37 host, sanitizer, target-budget and web tests
         env:
           EDFZ_N: "2000"
+          SOAK_MIN: "2"
+          STRESS_FRAMES: "12000"
+          STRESS_ASAN_FRAMES: "4000"
           SYSTEM37_ONLY: "1"
         run: sh tests/run_tests.sh
 
