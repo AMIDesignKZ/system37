@@ -431,13 +431,13 @@ UI_SMALL static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                 ui_say("SAVED ", b);
             }
 #if !BOARD_SMK37
-        } else if (w == 2u * NTRK) {
+        } else if (w == 12u) {
             if (srec) ui_message("REC IS ON");
             else {
                 arrangement_enabled ^= 1u;
                 ui_message(arrangement_enabled ? "SONG MODE" : "LOOP MODE");
             }
-        } else if (w == 2u * NTRK + 1u) {
+        } else if (w == 13u) {
             if (srec) {
                 fm1_irq_off();
                 srec_stop();
@@ -462,9 +462,9 @@ UI_SMALL static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= NTRK && w < 2 * NTRK) {
             song.solo ^= (uint8_t)(1u << (w - NTRK));
-        } else if (w == 12) {
+        } else if (w == 2u * NTRK) {
             fill_held = 1;                                  /* FILL while held */
-        } else if (w == 13) {
+        } else if (w == 2u * NTRK + 1u) {
             fill_arm = (uint8_t)!fill_arm;                  /* FILL NEXT BAR (again: cancelled) */
             ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
         } else if (w == 15) {
