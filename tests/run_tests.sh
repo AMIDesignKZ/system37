@@ -271,7 +271,7 @@ run "USB audio input: built into the firmware (FELUCCA_UAC set before usb.c)" ua
 
 if [ "$SYSTEM37_ONLY" = 1 ]; then
     # System 37 package, OTA staging and loader windows. No FM-1 reference package is built or consumed.
-    $CC -o "$OUT/ota_test_smk" tests/ota_test.c
+    $CC $BOARD_CFLAGS -o "$OUT/ota_test_smk" tests/ota_test.c
     run "System 37 M-UPGRADE entry (SMK staging and product identity)" "$OUT/ota_test_smk" "$FWSC"
     $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test.c
     run "SMK-37 flash map: protected regions, storage objects and stock marker" "$OUT/smk_flash_test"
@@ -279,7 +279,7 @@ if [ "$SYSTEM37_ONLY" = 1 ]; then
     python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
     python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
     run "System 37 package layout and product identity" python3 tests/smk_pkg_test.py "$FWSC" "SMK-37 Pro_900"
-    $CC -o "$OUT/ldr_test_smk" tests/ldr_test.c
+    $CC $BOARD_CFLAGS -o "$OUT/ldr_test_smk" tests/ldr_test.c
     run "System 37 update loader: protected SMK-37 ranges remain untouched" "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
 else
 $CC -o "$OUT/ota_test" tests/ota_test.c
