@@ -20,7 +20,7 @@
  *    wider). Compared with CPU_FILE
  *    (tests/cpu_baseline.txt) at +25 % (instructions) or +35 % (time); ns per sample printed for
  *    information. A counted cost over the budget fails, a timed one or one far under it only warns.
- * 4. voices: the shared budget of 8 across all five synth parts, stolen voices fade (no step), MONO / LEGATO /
+ * 4. voices: the shared budget of 8 across all synth parts, stolen voices fade (no step), MONO / LEGATO /
  *    UNISON keep their note under pressure, release frees voices, and
  *    no hanging note after the note-offs on any routing (USB channels 1..3, 10, others while the
  *    selected track changes, the keys while the selected track changes, with ARP and the voice modes).
@@ -700,8 +700,14 @@ static int chk_voice_cap(char *msg, uint32_t n)
  * must be free (also the same note held on two "selected track" channels across a selection change). */
 static int chk_hang(char *msg, uint32_t n)
 {
+#if NPART >= 5
     static const uint8_t CHS[7] = {0, 1, 2, 3, 4, 9, 15};
-    uint8_t on[7][128] = {{0}};
+#define NCHS 7u
+#else
+    static const uint8_t CHS[6] = {0, 1, 2, 9, 4, 15};
+#define NCHS 6u
+#endif
+    uint8_t on[NCHS][128] = {{0}};
     uint32_t keys = 0, k, c, ev = 0, round;
     char who[96] = "";
     int bad = 0;
@@ -717,7 +723,7 @@ static int chk_hang(char *msg, uint32_t n)
         for (k = 0; k < 6u * FS / CTL; k++) {
             uint32_t r = rnd(16);
             if (r < 7u) {                          /* MIDI */
-                uint32_t ci = rnd(7), note = 36u + rnd(36);
+                uint32_t ci = rnd(NCHS), note = 36u + rnd(36);
                 if (on[ci][note]) {
                     midi_pkt(rnd(2) ? 0x80u | CHS[ci] : 0x90u | CHS[ci], note, 0);
                     on[ci][note] = 0;
@@ -736,7 +742,7 @@ static int chk_hang(char *msg, uint32_t n)
             blk();
         }
         fm1_in.notes = keys = 0;                   /* everything off */
-        for (c = 0; c < 7u; c++)
+        for (c = 0; c < NCHS; c++)
             for (k = 0; k < 128u; k++)
                 if (on[c][k]) {
                     midi_pkt(0x80u | CHS[c], k, 64);
@@ -764,7 +770,7 @@ static int chk_hang(char *msg, uint32_t n)
             }
         }
     }
-    snprintf(msg, n, "%u random MIDI / key events on ch 1-5, 10, 16 and the keys, track selection changing, "
+    snprintf(msg, n, "%u random MIDI / key events on ch 1-5 (or 1-3 on FM-1), 10, 16 and the keys, track selection changing, "
              "3 rounds: %s", ev, bad ? who : "no gate left on, every voice free");
     return !bad;
 }
