@@ -20,7 +20,7 @@
  *    wider). Compared with CPU_FILE
  *    (tests/cpu_baseline.txt) at +25 % (instructions) or +35 % (time); ns per sample printed for
  *    information. A counted cost over the budget fails, a timed one or one far under it only warns.
- * 4. voices: the shared budget of 8 across 3 parts, stolen voices fade (no step), MONO / LEGATO /
+ * 4. voices: the shared budget of 8 across all five synth parts, stolen voices fade (no step), MONO / LEGATO /
  *    UNISON keep their note under pressure, release frees voices, and
  *    no hanging note after the note-offs on any routing (USB channels 1..3, 10, others while the
  *    selected track changes, the keys while the selected track changes, with ARP and the voice modes).
@@ -257,6 +257,8 @@ static void job_song(const job_t *j)
     static const uint8_t ACIDF[16] = {1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 2, 0, 1};
     static const uint8_t AM[4] = {57, 60, 64, 67}, FMI[4] = {53, 57, 60, 64};
     static const uint8_t LEAD[12] = {76, 0, 0, 79, 0, 0, 81, 0, 79, 0, 76, 0};
+    static const uint8_t TEXTURE[16] = {64, 0, 67, 0, 71, 0, 67, 0, 62, 0, 66, 0, 69, 0, 66, 0};
+    static const uint8_t KEYS[16] = {60, 0, 0, 0, 64, 0, 0, 0, 67, 0, 0, 0, 71, 0, 0, 0};
     track_t *t1 = &trk[0], *t2 = &trk[1], *t3 = &trk[2], *td = TDRUM;
     uint32_t i;
     (void)j;
@@ -289,14 +291,24 @@ static void job_song(const job_t *j)
             n[k++] = i == 14u ? 46 : 42;
         put_step(td, i, k, n, k ? ST_NOTE : ST_REST, i % 4u == 0u ? SF_ACCENT : 0u);
     }
+#if NPART >= 5
+    host_preset(&trk[3], ENGI_ANALOG, 12);       /* fifth-part runtime: texture */
+    host_preset(&trk[4], ENGI_FM6, 3);            /* fifth synth part: keys */
+    for (i = 0; i < 16u; i++) {
+        uint8_t a = TEXTURE[i], b = KEYS[i];
+        put_step(&trk[3], i, a ? 1u : 0u, &a, a ? ST_NOTE : ST_REST, i == 0u ? SF_ACCENT : 0u);
+        put_step(&trk[4], i, b ? 1u : 0u, &b, b ? ST_NOTE : ST_REST, 0);
+    }
+#endif
     if (j->arg) {
-        static const int16_t S[4][4] = {{SL_STUT, 9, 1, 127}, {SL_GATE, 1, 1, 127}, {0, 1, 1, 127},
-                                        {SL_STUT, 12, 2, 110}};
         for (i = 0; i < NTRK; i++) {
             uint32_t k;
             for (k = 0; k < 4u; k++)
-                trk[i].p[P_SLCR + k] = S[i][k];
+                trk[i].p[P_SLCR + k] = 0, trk[i].p[P_SLCR + k] = (int16_t[]){0, 1, 1, 127}[k];
         }
+        trk[0].p[P_SLCR] = SL_STUT; trk[0].p[P_SLPAT] = 9; trk[0].p[P_SLRATE] = 1; trk[0].p[P_SLDEPTH] = 127;
+        trk[1].p[P_SLCR] = SL_GATE; trk[1].p[P_SLPAT] = 1; trk[1].p[P_SLRATE] = 1; trk[1].p[P_SLDEPTH] = 127;
+        td->p[P_SLCR] = SL_STUT; td->p[P_SLPAT] = 12; td->p[P_SLRATE] = 2; td->p[P_SLDEPTH] = 110;
         song.g[G_SWING] = 20;
     }
     transport_req = 1;
