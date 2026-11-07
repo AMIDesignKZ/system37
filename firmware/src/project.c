@@ -157,6 +157,9 @@ UI_SMALL static void pt_set_mf(proj_trk_t *t, uint32_t i, int32_t micro, uint32_
     t->mf[i] = (uint8_t)(((uint32_t)micro & 63u) | (fill & 3u) << 6);
 }
 
+/* Shared working-project snapshot: used by both the FM-1 autosave path and
+ * System 37's catalogue-backed working slot. Keep it in POOL on both boards. */
+static project_t autosave_buf __attribute__((section(".pool")));
 #if BOARD_SMK37
 /* Eight FUN7 caches are split across ordinary RAM, LOWRAM and NOINIT: five,
  * two and one respectively. The core-1 stack is in POOL; the song-return
@@ -199,7 +202,6 @@ static union {
 static s37_cat_overlay_t s37_cat_overlay;
 static s37_cat_image_t s37_cat_image;
 static const sm_io_t s37_cat_io;
-static project_t autosave_buf __attribute__((section(".pool")));
 #if BOARD_SMK37
 static uint8_t backup_stage_locked;
 static uint32_t backup_stage_ms;
