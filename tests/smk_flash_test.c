@@ -53,7 +53,8 @@ int main(void)
           FL_GUARD(0x9D000u, 0x1000u) && FL_GUARD(0xBA000u, 0x1000u) && FL_GUARD(0xBF000u, 0x1000u) &&
           FL_GUARD(0xC2000u, 0x1000u) && FL_GUARD(0xE9000u, 0x1000u) && FL_GUARD(0xEA000u, 0x1000u) &&
           !FL_GUARD(0xEB000u, 0x1000u) && !FL_GUARD(0x9C000u, 0x1000u) &&
-          allowed == (0xC0000u - 0x9D000u + 0xEA000u - 0xC2000u) / 0x1000u + 1u);
+          allowed == (0xC0000u - 0x9D000u + 0xEA000u - 0xC2000u +
+                      FL_CAT_FREE_HI - FL_CAT_FREE_LO + FL_CAT_TAIL_HI - FL_CAT_TAIL_LO) / 0x1000u + 1u);
     check("the stock marker sector 0xEA000: the whole sector only (its erase), never a page or a range into it",
           FL_STOCKTAG_OK(0xEA000u, 0x1000u) && !FL_GUARD(0xEA000u, 256u) && !FL_GUARD(0xEAF00u, 256u) &&
           !FL_GUARD(0xEAFF8u, 8u) && !FL_GUARD(0xE9000u, 0x2000u) && !FL_GUARD(0xEA000u, 0x2000u) &&
