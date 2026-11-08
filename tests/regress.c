@@ -632,7 +632,7 @@ static int chk_keep(char *msg, uint32_t n, uint32_t mode)
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
     for (k = 1; k < NPART; k++) {
-        host_preset(&trk[k], ENGI_FM6, 0);
+        host_preset(&trk[k], ENGI_FM6, 6); /* DRAWBARS: sustained competing voices */
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_AMODE] = 0;
         trk[k].p[P_SUS] = 100;
