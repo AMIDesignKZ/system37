@@ -130,10 +130,9 @@ UI_SMALL static void hexs(char *b, uint32_t v)
 }
 
 #if BOARD_SMK37
-/* the SMK-37 Pro's 4 faders, tracks 1..4 (4 = drums), by FADER BANK (ui_input.c smk_fbank): A level, B the
- * track's filter (P_TFLT: low-pass left, open in the middle, high-pass right), C reverb send, D delay send;
- * SLOOP Pro: E the selected synth track's envelope, ATTACK DECAY SUSTAIN RELEASE.
- * A fader takes over only once it moves (also after a bank change), so nothing jumps. */
+/* Four physical faders. System 37 bank cycle: A1 levels 1-4, A2 levels 5-6 (F1/F2),
+ * B filter, C reverb, D delay, E selected synth track envelope. A fader takes over only
+ * once it moves (also after a bank change), so nothing jumps. */
 static void smk_faders(void)
 {
     static uint8_t last[4] = {0xFF, 0xFF, 0xFF, 0xFF};
