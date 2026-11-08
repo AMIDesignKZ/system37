@@ -428,3 +428,53 @@ The first SMK-37 Pro target build in this isolated pipeline succeeded. The measu
 - The CI test stage now has a 20-minute shell timeout and skips optional Callgrind instrumentation while retaining CPU-time measurements. The regression timer checks the thread CPU clock and falls back to process CPU time, then monotonic time if the preferred clock is unavailable.
 
 - The mixer-side web mock now follows the same System37 profile as the INFO/TRACK test: six tracks, drum track at index 5, and drum-level/step operations routed to that index. Legacy tests continue to use index 3.
+
+
+## Progress checkpoint — System37 panel UI integration (8 November 2026)
+
+The repository was renamed from `AMIDesignKZ/sloop-pro-extended` to `AMIDesignKZ/system37`; the active development branch remains `extended-firmware`. All subsequent Git work uses the canonical repository name.
+
+### Verified existing six-track UI work
+
+- `core.h` selects `NPART=5`, `NTRK=6`, and `TRK_DRUM=5` for `BOARD_SMK37` and `SYSTEM37_HOSTSIM`.
+- The TRACKS page in `ui_draw.c` already draws four channel strips and scrolls its viewport to tracks 3–6 when track 5 or 6 is selected.
+- The global track selector in `ui_input.c` routes the SMK-37 ALGO encoder (K3) through `track_select()`, bounded by `NTRK-1`; therefore selection already reaches all six tracks. Selecting track 5 or 6 triggers the existing TRACKS viewport rule.
+- `ui_song.c` and `arranger.h` already use the eight-section A–H model in the System37 build. This is not proof that the live FUN7 section-apply path is complete; that remains a separate runtime integration gate.
+
+### New fader-bank integration
+
+The SMK-37 has four physical faders. The System37 fader-bank sequence now has six pages:
+
+1. A1 — track levels 1–4.
+2. A2 — track levels 5–6. Fader 1 controls synth track 5; fader 2 controls drum track 6; faders 3–4 are intentionally unassigned.
+3. B — filter.
+4. C — reverb.
+5. D — delay.
+6. E — selected synth track envelope (ADSR).
+
+The A2 display reads the same live parameter values that its faders write; it does not introduce duplicate mixer state. The fader page uses six compact bank indicators and explicitly labels the two level pages A1/A2. The existing no-jump behaviour remains: each fader takes control only after it moves following a bank change.
+
+Changed files:
+- `firmware/src/ui_fbank.c`: added A2 mapping, display and six-page sequence.
+- `firmware/src/ui_input.c`: changed the fader cycle from five to six pages.
+- `firmware/src/main.c`: updated the hardware mapping documentation.
+- `tests/fader_level_test.c`: added System37 checks for track 5, drum track 6, live-value display pointers and unused A2 faders 3–4; preserved the legacy four-track test path.
+- `README.md` and `SYSTEM37.md`: documented the six-page fader layout.
+
+Commits created on `extended-firmware`:
+- `da3f744` — add second System37 fader level page.
+- `f536eb1` — extend fader-bank cycle to six pages.
+- `7561047` — document the six-track hardware mapping.
+- `ad2c71c` — add System37 A2 mapping regression coverage.
+- `924b6b5` — keep the legacy drum fader assertion profile-correct.
+- Documentation checkpoint follows these implementation commits.
+
+### Verification still required
+
+The source and test changes have been committed, but the host test suite and SMK-37 target build have not been run from this GitHub session. Run `SYSTEM37_ONLY=1 tests/run_tests.sh` after the matching target build. In particular, confirm the A2 fader test, six-page screen navigation, and that no fader jumps on page changes. Physical hardware testing is still required.
+
+### Remaining UI/runtime integration
+
+- The K3 selection and four-row scroll path are present; add/retain explicit System37 UI regression coverage for selecting tracks 5 and 6 and checking the viewport.
+- The A2 fader page is now implemented; review whether filter/reverb/delay need additional pages for tracks 5–6. The current accepted request only adds the second LEVEL page.
+- Connect the complete six-track UI to the board runtime only after the live FUN7 apply path, audio/voice model and project persistence are verified. The host-only six-track profile must not be mistaken for proof of physical-device audio integration.
