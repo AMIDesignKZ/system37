@@ -66,10 +66,16 @@ int main(int argc, char **argv)
         fb_move(0, 1, 77); fb_move(0, 2, 13);
         check(trk[1].p[P_LEVEL] == l77 && trk[2].p[P_LEVEL] == l13, "faders 2 and 3: tracks 2 and 3, the same law");
     }
+#if NTRK == 6
+    fb_move(1, 1, 64);
+    check(song.g[G_DRLVL] == 64, "A2 fader 2: the drums' LVL (linear, 0..127)");
+#else
     fb_move(0, TRK_DRUM, 64);
     check(song.g[G_DRLVL] == 64, "fader 4: the drums' LVL as before (linear, 0..127)");
+#endif
 
 #if NTRK == 6
+    check(FB_N == 6u, "System37 fader cycle has six pages");
     {
         int16_t *vp = 0;
         const param_desc_t *d;
