@@ -17,8 +17,8 @@
  *         9 fill while held, 10 fill the next bar, the last white key: tap tempo
  *   SAVE  SMK-37 pads 1..8 play sections A..H (on the next bar; two or more tapped while SAVE stays held:
  *         a chain of them, looped, each for its pattern's bars), pads 9..16 store A..H; other boards retain
- *         keys 1..4 for A..D and 5..8 to store A..D. SMK-37 pads 10 / 12 / 16 also select loop/song,
- *         SONG REC and the song page through the layer's dedicated pad mapping.
+ *         keys 1..4 for A..D and 5..8 to store A..D. The dedicated controls also toggle loop/song,
+ *         arm SONG REC and open the song page.
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SEL and
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
