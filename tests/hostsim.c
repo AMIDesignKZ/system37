@@ -375,15 +375,15 @@ static double tracks_cost(const uint8_t parts[NPART][3], uint32_t *busy_max)
     return r[0];
 }
 
-/* System 37 shared-voice stealing: five sustained FM6 DRAWBARS voices. A held, sustained patch is essential
- * here: TINE EP is percussive and its operator envelopes end the voices before a long pressure test can run.
+/* System 37 shared-voice stealing: five sustained FM6 SOFT PAD voices. A held, sustained patch is essential
+ * here: percussive factory patches end their operator envelopes before a long pressure test can run.
  * New notes on parts 2..5 take held voices. Each taken voice fades over KILL_BLOCKS. Writes DIR/steal.wav. */
 static void host_fm6_sine(track_t *t)
 {
     uint8_t patch[FP_SIZE + 1u];
     uint32_t part = (uint32_t)(t - trk);
-    host_preset(t, ENGI_FM6, 6);                      /* F7 DRAWBARS: sustained operator envelopes */
-    fm6_unpack(FM6_FACTORY[6], patch);
+    host_preset(t, ENGI_FM6, 4);                      /* F5 SOFT PAD: sustained operator envelopes */
+    fm6_unpack(FM6_FACTORY[4], patch);
     fm6_set_patch(part, patch);
     t->p[P_VOICE] = V_POLY;
     t->p[P_SUS] = 127;
@@ -811,12 +811,12 @@ static int tracks_test(const char *dir)
         for (p = 0; p < NPART; p++) {
             uint32_t e = (p & 1u) ? ENGI_ANALOG : ENGI_FM6;
             parts[p][0] = full[p][0] = (uint8_t)e;
-            parts[p][1] = full[p][1] = (uint8_t)heavy[e];
+            parts[p][1] = full[p][1] = (uint8_t)(e == ENGI_FM6 ? 4u : heavy[e]);
             parts[p][2] = (uint8_t)(NPART == 5u ? (p < 3u ? 2u : 1u) : (p < 2u ? 3u : 2u));
             full[p][2] = 8;
         }
         vv[0][0] = vv[1][0] = ENGI_FM6;
-        vv[0][1] = vv[1][1] = (uint8_t)heavy[ENGI_FM6];
+        vv[0][1] = vv[1][1] = 4u;
         vv[0][2] = vv[1][2] = 4;
         mix_cost = tracks_cost(parts, &bm);
         full_cost = tracks_cost(full, &bm2);
