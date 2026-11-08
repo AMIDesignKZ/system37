@@ -367,15 +367,15 @@ static double tracks_cost(const uint8_t parts[NPART][3], uint32_t *busy_max)
     return r[0];
 }
 
-/* System 37 shared-voice stealing: five FM6 INIT voices (a clean sine-like reference), 7 + 1 notes
- * fill the shared budget, then new notes on parts 2..5 take held voices. Each taken voice fades over
- * KILL_BLOCKS. Compare sample steps around each take with the 0.25 s before it. Writes DIR/steal.wav. */
+/* System 37 shared-voice stealing: five sustained FM6 DRAWBARS voices. A held, sustained patch is essential
+ * here: TINE EP is percussive and its operator envelopes end the voices before a long pressure test can run.
+ * New notes on parts 2..5 take held voices. Each taken voice fades over KILL_BLOCKS. Writes DIR/steal.wav. */
 static void host_fm6_sine(track_t *t)
 {
     uint8_t patch[FP_SIZE + 1u];
     uint32_t part = (uint32_t)(t - trk);
-    host_preset(t, ENGI_FM6, 0);
-    fm6_unpack(FM6_INIT, patch);
+    host_preset(t, ENGI_FM6, 6);                      /* F7 DRAWBARS: sustained operator envelopes */
+    fm6_unpack(FM6_FACTORY[6], patch);
     fm6_set_patch(part, patch);
     t->p[P_VOICE] = V_POLY;
     t->p[P_SUS] = 127;
