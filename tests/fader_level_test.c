@@ -68,6 +68,23 @@ int main(int argc, char **argv)
     }
     fb_move(0, TRK_DRUM, 64);
     check(song.g[G_DRLVL] == 64, "fader 4: the drums' LVL as before (linear, 0..127)");
+
+#if NTRK == 6
+    {
+        int16_t *vp = 0;
+        const param_desc_t *d;
+        fb_move(1, 0, 77);                         /* A2: physical fader 1 -> track 5 */
+        check(trk[4].p[P_LEVEL] == fb_level(77), "A2 fader 1 controls track 5 LEVEL");
+        fb_move(1, 1, 64);                         /* A2: physical fader 2 -> drum track 6 */
+        check(song.g[G_DRLVL] == 64, "A2 fader 2 controls track 6 drum LEVEL");
+        d = fb_param(1, 0, &vp);
+        check(d != 0 && vp == &trk[4].p[P_LEVEL], "A2 display reads track 5's live LEVEL value");
+        d = fb_param(1, 1, &vp);
+        check(d != 0 && vp == &song.g[G_DRLVL], "A2 display reads track 6's live drum LEVEL value");
+        d = fb_param(1, 2, &vp);
+        check(d == 0, "A2 leaves physical faders 3 and 4 unassigned");
+    }
+#endif
     {   /* heard: track 1, a held chord, through the whole mix (MASTER at the top) */
         uint32_t k;
         int32_t p0, p1, ph, pt;
