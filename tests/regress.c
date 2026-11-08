@@ -536,7 +536,7 @@ static void midi_pkt(uint32_t st, uint32_t d1, uint32_t d2)   /* as usb.c: the q
     midi_in_q[mi_w++ % MQ] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
 }
 
-/* Shared budget: five sustained FM6 DRAWBARS parts, each with an engine cap of six, compete for eight voices.
+/* Shared budget: five sustained FM6 SOFT PAD parts, each with an engine cap of six, compete for eight voices.
  * After every block, no more than eight voices may sound, no part may exceed its engine cap, every
  * stolen voice must finish its KILL_BLOCKS fade, and all voices must release after note-offs. */
 static int chk_budget(char *msg, uint32_t n)
@@ -545,7 +545,7 @@ static int chk_budget(char *msg, uint32_t n)
     uint32_t p, k, worst = 0, vworst = 0, fading = 0, cap_bad = 0, kills0 = voice_kills;
     host_tracks_init();
     for (p = 0; p < NPART; p++) {
-        host_preset(&trk[p], ENGI_FM6, 6); /* DRAWBARS: sustained voices keep pressure on the shared allocator */
+        host_preset(&trk[p], ENGI_FM6, 4); /* SOFT PAD: sustained voices keep pressure on the shared allocator */
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_AMODE] = 0;
         trk[p].p[P_SUS] = 100;
@@ -627,12 +627,12 @@ static int chk_keep(char *msg, uint32_t n, uint32_t mode)
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     uint32_t k, lost = 0, kills0 = voice_kills;
     host_tracks_init();
-    host_preset(&trk[0], ENGI_FM6, 6); /* DRAWBARS: the protected lead must remain held */
+    host_preset(&trk[0], ENGI_FM6, 4); /* SOFT PAD: the protected lead must remain held */
     trk[0].p[P_VOICE] = (int16_t)mode;
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
     for (k = 1; k < NPART; k++) {
-        host_preset(&trk[k], ENGI_FM6, 6); /* DRAWBARS: sustained competing voices */
+        host_preset(&trk[k], ENGI_FM6, 4); /* SOFT PAD: sustained competing voices */
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_AMODE] = 0;
         trk[k].p[P_SUS] = 100;
@@ -661,7 +661,7 @@ static int chk_voice_cap(char *msg, uint32_t n)
     for (mode = 0; mode < 2u; mode++) {
         track_t *t = &trk[0];
         host_tracks_init();
-        host_preset(t, ENGI_FM6, 6); /* DRAWBARS: sustain long enough to measure the engine's six-voice cap */
+        host_preset(t, ENGI_FM6, 4); /* SOFT PAD: sustain long enough to measure the engine's six-voice cap */
         t->p[P_VOICE] = mode ? V_UNISON : V_POLY;
         t->p[P_AMODE] = 0;
         for (k = 0; k < 8u; k++) trk_note_on(t, 60u + 2u * k, 100);
@@ -675,7 +675,7 @@ static int chk_voice_cap(char *msg, uint32_t n)
         for (k = 0; k < 4u * FS / CTL && !parts_free(); k++) blk();
         if (!parts_free()) most[mode] = 99;
     }
-    snprintf(msg, n, "FM6 DRAWBARS part, 8 keys: at most %u voices in POLY, %u in UNISON (cap 6); freed after release",
+    snprintf(msg, n, "FM6 SOFT PAD part, 8 keys: at most %u voices in POLY, %u in UNISON (cap 6); freed after release",
              most[0], most[1]);
     return most[0] == 6u && most[1] == 6u;
 }
