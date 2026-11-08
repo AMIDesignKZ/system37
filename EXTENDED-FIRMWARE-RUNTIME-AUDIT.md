@@ -274,3 +274,27 @@ A two-buffer design cannot be implemented by changing the array declaration alon
 - Run the complete host suite and target build before signing off. Do not install on hardware until the normal recovery route has been verified.
 
 Status: source-level audit completed; **no source declarations or runtime behaviour have been changed yet**. The two-buffer design is the selected direction, subject to the above lifecycle and linker checks.
+
+
+### Additional catalogue and transition findings
+
+The existing catalogue format already contains the metadata needed to avoid keeping every section resident:
+- `present_mask` identifies populated sections.
+- Each directory entry stores the section checksum and loop length in bars.
+- `s37_cat_validate()` already validates all present records sequentially through one scratch project buffer; it does not require eight resident buffers.
+- `s37_cat_load_section()` loads and validates one requested section into a caller-provided buffer.
+- The single-section save/erase and working-project overlay APIs already stream from one replacement buffer plus one scratch buffer.
+
+The remaining all-sections-in-RAM dependency is concentrated in the full-catalogue creation path: `s37_cat_image_t` stores eight section pointers, `s37_cat_prepare_image()` requires all eight project pointers, and `s37_catalog_write_full()` populates that pointer array from `proj_slot[]`. This API needs a streaming source that can provide each present section record on demand. The existing multi-sector storage writer already consumes a read callback, so this can be done without a 48 KiB catalogue image in RAM.
+
+The transition path also needs a coordinated change:
+- `arranger_scene.c:arrangement_apply()` currently applies `proj_slot[scene]` directly from the audio path.
+- `seq.c:live_block()` applies live/quick-chain changes on a bar boundary from the audio sequencer path.
+- The song arranger calls `arrangement_apply()` directly when `arr_next()` reports a section transition.
+- Quick-chain selection currently masks scene indices with `& 3u` in `live_block()`, so it only preserves A–D even though the section catalogue supports A–H. This is an existing eight-section correctness issue that must be fixed as part of transition integration, not by changing cache storage alone.
+- A live section request is currently consumed at the next bar; the request path must trigger staging early enough that flash read and validation finish before that boundary.
+- The song arranger's next scene must likewise be known/prefetched before its transition boundary. The audio-block path should only switch to a validated staging buffer.
+
+The catalogue directory's `bars` value should become the authoritative quick-chain duration metadata. This removes `section_bars()`'s current need to inspect every track in a resident project image. Presence checks should use the catalogue's validated `present_mask`, not `project_valid(proj_slot[i])`.
+
+These findings strengthen the feasibility of the two-buffer design: the catalogue and streaming overlay already provide most of the storage primitives. The required work is the resident-section API, full-catalogue creation reader, and prefetch/atomic hand-off across live, quick-chain and song-arrangement transition paths.
