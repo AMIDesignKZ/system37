@@ -478,3 +478,16 @@ The source and test changes have been committed, but the host test suite and SMK
 - The K3 selection and four-row scroll path are present; add/retain explicit System37 UI regression coverage for selecting tracks 5 and 6 and checking the viewport.
 - The A2 fader page is now implemented; review whether filter/reverb/delay need additional pages for tracks 5–6. The current accepted request only adds the second LEVEL page.
 - Connect the complete six-track UI to the board runtime only after the live FUN7 apply path, audio/voice model and project persistence are verified. The host-only six-track profile must not be mistaken for proof of physical-device audio integration.
+
+
+### Follow-up UI audit — physical A–H song controls (8 November 2026)
+
+The SMK-37 SAVE layer is already wired for eight sections in the System37 build:
+- The first eight pads select/play sections A–H.
+- The second eight pads store sections A–H, with the existing overwrite confirmation.
+- The layer's control-key actions retain loop/song mode, SONG REC and opening the song page.
+- The SONG page itself displays the eight-section catalogue and edits the 16-entry arrangement chain; each chain entry is bounded by `ARR_SCENES`.
+
+The old `ui_layers.c` header comment still described the four-section SLOOP layout. It has been corrected to distinguish the System37 8+8 pad layout from the legacy four-section layout on other boards.
+
+This verifies the UI selection and store controls, not the full live section hand-off. The board-specific FUN7 apply path, save/load persistence and real-time section transition must still be verified end-to-end before claiming the song backend is complete.
