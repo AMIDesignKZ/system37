@@ -24,6 +24,8 @@ hanging TRS notes, a save that never claims to be one when the flash failed).
 | Sustain pedal | the PEDAL jack: a footswitch of either polarity (the reading at power-on is "up": plug it in before switching on); the selected synth track sustains, CC 64 goes out over USB and TRS |
 | The pads | a pad hit flashes white for 80 ms, whatever it shows; triggered as a drum module's: a threshold (HOME menu > PADS > PAD THRESHOLD: LOW, MID, HIGH, MAX; PADS > PAD SCOPE shows what a pad measures), the velocity at the peak of the hit, a 40 ms mask after each note and a retrigger cancel that follows the pad's decay: one tap is one note, also a soft one whose finger stays on the pad; rolls up to 16 hits a second |
 | PAD LIGHTS | HOME menu > PADS > PAD LIGHTS (K6): HIGH (default), MID, LOW; each change lights the 16 pads in the tracks' colours for 1.5 s (a test of every pad) |
+| FADER BANK A1 / A2 | A1: faders 1–4 set track levels 1–4; A2: fader 1 sets track 5, fader 2 sets drum track 6 (faders 3–4 unused) |
+| FADER BANK B / C / D | FILTER / REVERB / DELAY for tracks 1–4 |
 | FADER BANK E | ENV: faders 1–4 set the selected synth track's ATTACK, DECAY, SUSTAIN, RELEASE |
 | TRS MIDI OUT | turned OFF (or a note-off lost to a full buffer): a note-off for every note still on, then sustain off and all notes off — nothing hangs on the other synth |
 | Saving | a section the flash did not take shows NOT SAVED: FLASH ERROR and keeps what was saved before; the editor says so too |
