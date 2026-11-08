@@ -210,3 +210,67 @@ This is a source change only. No host test or target build has yet verified it. 
 The test harness now targets the two supported synth engines. Legacy synth-engine-only tests for SAMPLE/GRAIN, NOISE and PHYS were removed from the active runner; drum-kit, user-drum-kit, sampled drum, Analog, FM6, sequencer, storage and project-prototype tests remain. The regression generator now builds CPU mixes from Analog/FM6 parts and the target instruction-budget list contains only Analog, FM6, drums, slicer and the audio IRQ.
 
 The existing golden render file, host CPU baseline and target instruction budget still describe the old engine set. Regenerate them with the intended-change flags after a successful target build, inspect the resulting diffs, and only then treat the updated host suite as a valid regression baseline. No such test run has yet occurred.
+
+## Memory optimisation checkpoint — two-buffer section cache (8 November 2026)
+
+The preferred first headroom optimisation is to replace the eight simultaneously resident FUN7 section caches with two reusable buffers: one active/working section and one staging/prefetch section. This is a cache-lifecycle change only; it must not reduce the six-track model, synth voice budget, sample capability, microtiming or parameter-lock count.
+
+### Corrected measurements from the current source
+
+The current branch's actual FUN7 format is **5,366 bytes**, not the 5,108-byte estimate in the earlier architecture proposal:
+
+- `project_v7.h` currently defines `PROJ_V7_LOCKS=24`.
+- Each track is 881 bytes and contains 48 bytes of packed six-bit microtiming plus 16 bytes of fill conditions.
+- Six tracks plus the 76-byte header/checksum produce `sizeof(project_v7_t)==5366`.
+- The 5,108-byte proposal assumed 12 locks and no microtiming; those assumptions do not describe the current source and must not be used for RAM sizing.
+
+The current eight caches are allocated as:
+- Five objects in ordinary `.bss`: 5 × 5,366 = 26,830 bytes.
+- Two objects in `.lowram`: 2 × 5,366 = 10,732 bytes.
+- One object in `.noinit`: 1 × 5,366 = 5,366 bytes.
+- Total cache residency: 42,928 bytes.
+
+Replacing eight caches with two therefore gives a **gross saving of 32,196 bytes** before any small metadata or staging changes. The existing `autosave_buf` is a separate 5,366-byte object in `.pool` and is also used as the song-return snapshot; it is not included in the eight-cache total and must remain until its independent lifetimes are redesigned and proven.
+
+Latest reported target link figures (from the user's SMK-37 build) were:
+- `.data + .bss`: 98,188 / 98,304 bytes; 116 bytes free.
+- `.lowram`: 28,384 / 29,240 bytes; 856 bytes free.
+- `.pool`: 335,340 / 344,064 bytes; 8,724 bytes free.
+
+Two 5,366-byte buffers total 10,732 bytes, so the earlier proposal to put both in `.pool` does **not** fit the reported current `.pool` headroom. A likely placement to investigate is one buffer in ordinary RAM and one in `.lowram`, reusing the existing cache allocations:
+- Remove five ordinary-RAM caches and add one working buffer: net 21,464 bytes recovered in ordinary RAM.
+- Remove two LOWRAM caches and add one staging buffer: net 5,366 bytes recovered in LOWRAM.
+- Remove the NOINIT cache: recover another 5,366 bytes in NOINIT.
+- Aggregate net recovery remains 32,196 bytes. This is a placement proposal only; confirm the actual linker map, alignment and RAMTEXT/LOWRAM constraints before changing declarations.
+
+### Runtime dependencies that must be refactored
+
+A two-buffer design cannot be implemented by changing the array declaration alone. Current `project.c` and `arranger_scene.c` directly assume all eight section images are simultaneously addressable:
+
+- Boot currently loads and validates all eight catalogue sections into `proj_slot[0..7]`.
+- Save, erase, load, restore, `project_used()`, and `arrangement_ready()` directly index those pointers.
+- `s37_catalog_write_full()` builds an eight-pointer array of all section images for the initial catalogue commit.
+- `section_store()` captures directly into the selected slot; `section_load()` and `arrangement_apply()` apply directly from it.
+- `section_bars()` reads pattern lengths from a resident section image.
+- The arrangement apply path runs at an audio-block boundary. It must never perform catalogue reads, validation or flash access there.
+- `proj_slot[7]` is also temporarily used as a FUN6 conversion destination during the pre-catalogue legacy import path. That legacy path must be isolated or redirected to the existing scratch/staging storage before the eighth cache is removed. The product decision says FUN6 import is not part of the System 37 contract, but the code still contains this transitional path.
+
+### Required two-buffer behaviour
+
+1. At boot, validate the catalogue and retain its directory/presence metadata; do not eagerly load all eight section payloads.
+2. Load the selected/current section into the working buffer on stopped UI selection.
+3. Load the next arrangement section into the staging buffer in the main loop, early enough to complete validation before the transition.
+4. At the audio-block boundary, apply only an already validated RAM buffer. Swap working/staging roles or pointers atomically; do not copy 5.3 KiB or access flash in the ISR unless timing evidence proves that safe.
+5. Resolve section presence and bar-length metadata from the validated catalogue directory where possible, rather than requiring all section payloads in RAM.
+6. Save/erase through the existing catalogue overlay/streaming APIs using the working or staging buffer. For first catalogue creation, replace the current eight-pointer full-image API with a streaming source that can read the eight sections from their source records without retaining all eight in RAM.
+7. Keep `autosave_buf` and its song-return lifetime unchanged in this first patch. Do not combine the cache refactor with voice-pool, lock-count, microtiming, audio scheduling or flash-map changes.
+
+### Implementation and validation gates
+
+- First map every `proj_slot[]` consumer and define explicit APIs for current section, staging section, section metadata, and load/save/erase.
+- Add host tests for repeated A–H selection, dirty-section save, erase, catalogue first-commit, failed prefetch, rapid arrangement transitions, and staging-buffer reuse. Assert that the ISR-facing apply path only accepts a fully validated buffer.
+- Test the song-return snapshot and autosave independently to prove no aliasing with either section buffer.
+- Build the exact SMK-37 target and compare all linker regions against the latest measured baseline; inspect the map and stack high-water. Require comfortable headroom in each region, not just a lower aggregate byte count.
+- Run the complete host suite and target build before signing off. Do not install on hardware until the normal recovery route has been verified.
+
+Status: source-level audit completed; **no source declarations or runtime behaviour have been changed yet**. The two-buffer design is the selected direction, subject to the above lifecycle and linker checks.
