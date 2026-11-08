@@ -180,6 +180,7 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
     char path[512];
     FILE *w;
     uint32_t f, i, bmax = 0, clips = 0, fail = 0, clap_done = 0, lead_done = 0, keys_t = 0, keys_on = 0;
+    uint32_t solo_peak = 0;
     uint32_t clap_age = 0, clap_hits = 0xFFFFu, clap_pass = 0, kills0;
     track_t *t1 = &trk[0], *t2 = &trk[1], *t3 = &trk[2], *td = TDRUM;
 #if NPART >= 5
@@ -277,15 +278,22 @@ static int tracks_demo(const char *dir, const char *name, uint32_t solo)
         if (busy_now() > bmax)
             bmax = busy_now();
         for (i = 0; i < CTL; i++) {
-            int32_t l = o[2 * i];
-            if (l >= 32700 || l <= -32700)
+            int32_t l = o[2 * i], rr = o[2 * i + 1];
+            uint32_t al = (uint32_t)(l < 0 ? -l : l), ar = (uint32_t)(rr < 0 ? -rr : rr);
+            uint32_t a = al > ar ? al : ar;
+            if (l >= 32700 || l <= -32700 || rr >= 32700 || rr <= -32700)
                 clips++;
-            wav_put(w, o[2 * i], o[2 * i + 1]);
+            if (a > solo_peak)
+                solo_peak = a;
+            wav_put(w, l, rr);
         }
     }
     fclose(w);
-    if (solo)
-        return bmax > NVOICE;
+    if (solo) {
+        int audible = solo_peak > 100u;
+        printf("tracks: solo track %u: peak %u %s\n", solo, solo_peak, audible ? "audible" : "SILENT");
+        return bmax > NVOICE || !audible;
+    }
     {
         const dstep_t *s4 = &td->dstep[4];
         const step_t *l1 = &t3->step[1], *p14 = &t2->step[14];
