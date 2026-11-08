@@ -298,3 +298,18 @@ The transition path also needs a coordinated change:
 The catalogue directory's `bars` value should become the authoritative quick-chain duration metadata. This removes `section_bars()`'s current need to inspect every track in a resident project image. Presence checks should use the catalogue's validated `present_mask`, not `project_valid(proj_slot[i])`.
 
 These findings strengthen the feasibility of the two-buffer design: the catalogue and streaming overlay already provide most of the storage primitives. The required work is the resident-section API, full-catalogue creation reader, and prefetch/atomic hand-off across live, quick-chain and song-arrangement transition paths.
+
+
+### Newly confirmed blocker — deferred saves while transport is running
+
+The UI permits section-store actions while `song.playing` is true. `section_store()` captures the current runtime into the selected section cache under IRQ exclusion and sets its bit in `sec_dirty`. It deliberately does not write flash. `sections_flush()` only commits dirty sections after playback has stopped, transport is idle, audio is quiet and the UI has been idle. The existing comment documents that flash erase can interrupt audio for approximately 50 ms.
+
+This means multiple different section snapshots can be pending simultaneously. A two-buffer active/staging cache cannot safely represent an arbitrary number of dirty section snapshots while preserving the existing save-while-playing behaviour. Reusing either buffer for prefetch would overwrite a pending snapshot; committing to flash during playback would introduce a flash operation/audio interruption that the current design explicitly avoids.
+
+This is a correctness gate, not a minor implementation detail. Before replacing the eight caches, choose and test one of these policies:
+
+1. **Preserve current behaviour:** retain enough additional dirty-snapshot capacity for the maximum number of sections that may be saved during playback. The RAM saving will be smaller than 32,196 bytes; a bounded dirty-snapshot pool can be measured against realistic usage, but it cannot guarantee arbitrary eight-section saves without the corresponding storage.
+2. **Immediate durable save:** commit each section snapshot to the catalogue when the user stores it, including while transport is running. This requires proving flash access can safely coexist with audio and accepting/mitigating the existing approximately 50 ms erase interruption. Do not assume this is safe.
+3. **Bounded deferred-save UX:** allow a limited number of pending section saves and reject further saves with a clear message until playback stops and the pending writes are committed. This changes current behaviour and needs explicit product approval.
+
+No code allocation change should be made until this policy is selected. The previous 32,196-byte figure is the gross saving for the cache objects alone; it is not a validated end-to-end saving while preserving deferred multi-section saves.
