@@ -5,8 +5,8 @@
 /* The LED picture is built off-line and copied one byte per column: clearing
  * and relighting would let the 10 kHz scan catch the dark gap and flicker. */
 #if BOARD_SMK37
-static uint8_t smk_fbank, smk_fbank_new;           /* FADER BANK: 0 level, 1 filter, 2 reverb, 3 delay, 4 env (main.c smk_faders) */
-#define FB_N 5u                                    /* the banks, A..E (ui_fbank.c) */
+static uint8_t smk_fbank, smk_fbank_new;           /* A1 levels 1-4, A2 levels 5-6, B filter, C reverb, D delay, E env */
+#define FB_N 6u                                    /* A1, A2, B, C, D, E (ui_fbank.c) */
 static uint8_t pad_steps;                          /* the pads on the PLAY layer: 0 DRUM KIT (the default), 1 NOTES (the
                                                     * selected track's sound on the 16 white keys F3..G5), 2 STEPS;
                                                     * KNOB BANK + FADER BANK, in that order (smk_input.h, seq.c
